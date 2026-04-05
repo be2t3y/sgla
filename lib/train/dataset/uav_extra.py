@@ -32,9 +32,14 @@ def _read_bbox_txt(path: str, delimiter: str = ',', dtype=np.float32) -> torch.T
 class _FolderVideoDataset(BaseVideoDataset):
     """Generic folder-based video dataset for training."""
 
-    def __init__(self, name, root, image_loader=jpeg4py_loader_w_failsafe, data_fraction=None):
+    def __init__(self, name, root, image_loader=jpeg4py_loader_w_failsafe, data_fraction=None,
+                 sequence_subset=None):
         super().__init__(name, root, image_loader)
         self.sequence_list = self._build_sequence_list()
+
+        if sequence_subset is not None:
+            sub = set(sequence_subset)
+            self.sequence_list = [n for n in self.sequence_list if n in sub]
 
         if data_fraction is not None:
             self.sequence_list = random.sample(
@@ -100,12 +105,17 @@ class UAV123_10FPS(BaseVideoDataset):
     Uses the same sequence definitions as the evaluation dataset with folder mapping.
     """
 
-    def __init__(self, root=None, image_loader=jpeg4py_loader_w_failsafe, split=None, data_fraction=None):
+    def __init__(self, root=None, image_loader=jpeg4py_loader_w_failsafe, split=None, data_fraction=None,
+                 sequence_subset=None):
         root = env_settings().uav123_10fps_dir if root is None else root
         super().__init__('UAV123_10FPS', root, image_loader)
         self.split = split
         self.seq_info_list = self._get_uav123_10fps_sequence_info()
         self.sequence_list = self._build_sequence_list()
+
+        if sequence_subset is not None:
+            sub = set(sequence_subset)
+            self.sequence_list = [n for n in self.sequence_list if n in sub]
 
         if data_fraction is not None:
             self.sequence_list = random.sample(
@@ -248,9 +258,11 @@ class UAV123_10FPS(BaseVideoDataset):
 
 
 class UAVTrack(_FolderVideoDataset):
-    def __init__(self, root=None, image_loader=jpeg4py_loader_w_failsafe, data_fraction=None):
+    def __init__(self, root=None, image_loader=jpeg4py_loader_w_failsafe, data_fraction=None,
+                 sequence_subset=None):
         root = env_settings().uavtrack_dir if root is None else root
-        super().__init__('UAVTrack', root, image_loader=image_loader, data_fraction=data_fraction)
+        super().__init__('UAVTrack', root, image_loader=image_loader, data_fraction=data_fraction,
+                         sequence_subset=sequence_subset)
 
     def _build_sequence_list(self):
         seq_path = os.path.join(self.root, 'anno_l')
@@ -265,9 +277,11 @@ class UAVTrack(_FolderVideoDataset):
 
 
 class UAVTrack112(_FolderVideoDataset):
-    def __init__(self, root=None, image_loader=jpeg4py_loader_w_failsafe, data_fraction=None):
+    def __init__(self, root=None, image_loader=jpeg4py_loader_w_failsafe, data_fraction=None,
+                 sequence_subset=None):
         root = env_settings().uavtrack_dir if root is None else root
-        super().__init__('UAVTrack112', root, image_loader=image_loader, data_fraction=data_fraction)
+        super().__init__('UAVTrack112', root, image_loader=image_loader, data_fraction=data_fraction,
+                         sequence_subset=sequence_subset)
 
     def _build_sequence_list(self):
         seq_path = os.path.join(self.root, 'anno')
@@ -282,9 +296,11 @@ class UAVTrack112(_FolderVideoDataset):
 
 
 class UAVDT(_FolderVideoDataset):
-    def __init__(self, root=None, image_loader=jpeg4py_loader_w_failsafe, data_fraction=None):
+    def __init__(self, root=None, image_loader=jpeg4py_loader_w_failsafe, data_fraction=None,
+                 sequence_subset=None):
         root = env_settings().uavdt_dir if root is None else root
-        super().__init__('UAVDT', root, image_loader=image_loader, data_fraction=data_fraction)
+        super().__init__('UAVDT', root, image_loader=image_loader, data_fraction=data_fraction,
+                         sequence_subset=sequence_subset)
 
     def _build_sequence_list(self):
         seq_path = os.path.join(self.root, 'sequences')
@@ -301,9 +317,11 @@ class UAVDT(_FolderVideoDataset):
 
 
 class DTB70(_FolderVideoDataset):
-    def __init__(self, root=None, image_loader=jpeg4py_loader_w_failsafe, data_fraction=None):
+    def __init__(self, root=None, image_loader=jpeg4py_loader_w_failsafe, data_fraction=None,
+                 sequence_subset=None):
         root = env_settings().dtb70_dir if root is None else root
-        super().__init__('DTB70', root, image_loader=image_loader, data_fraction=data_fraction)
+        super().__init__('DTB70', root, image_loader=image_loader, data_fraction=data_fraction,
+                         sequence_subset=sequence_subset)
 
     def _build_sequence_list(self):
         return sorted([d for d in os.listdir(self.root) if os.path.isdir(os.path.join(self.root, d))])

@@ -1,4 +1,5 @@
 import os
+import copy
 # loss function related
 from lib.utils.box_ops import giou_loss
 from torch.nn.functional import l1_loss
@@ -52,16 +53,33 @@ def run(settings):
 
     # Create network
     print("[Model] Creating network and loading pretrained weights (may take a moment) ...", flush=True)
+    net_teacher = None
+    is_distill = bool(getattr(cfg.MODEL, "IS_DISTILL", False))
     if settings.script_name == "sglatrack":
+        if is_distill:
+            tpath = getattr(cfg.MODEL, "TEACHER_PRETRAIN_FILE", "") or ""
+            if not str(tpath).strip():
+                raise ValueError("MODEL.IS_DISTILL=True requires MODEL.TEACHER_PRETRAIN_FILE (teacher checkpoint path).")
+            cfg_teacher = copy.deepcopy(cfg)
+            cfg_teacher.MODEL.PRETRAIN_FILE = tpath
+            cfg_teacher.MODEL.IS_DISTILL = False
+            net_teacher = build_sglatrack(cfg_teacher, training=True)
         net = build_sglatrack(cfg)
     else:
         raise ValueError("illegal script name")
 
     # wrap networks to distributed one
     net.cuda()
+    if net_teacher is not None:
+        net_teacher.cuda()
+        net_teacher.eval()
+        for _p in net_teacher.parameters():
+            _p.requires_grad_(False)
     if settings.local_rank != -1:
         # net = torch.nn.SyncBatchNorm.convert_sync_batchnorm(net)  # add syncBN converter
         net = DDP(net, device_ids=[settings.local_rank], find_unused_parameters=True)
+        if net_teacher is not None:
+            net_teacher = DDP(net_teacher, device_ids=[settings.local_rank], find_unused_parameters=True)
         settings.device = torch.device("cuda:%d" % settings.local_rank)
     else:
         settings.device = torch.device("cuda:0")
@@ -72,8 +90,20 @@ def run(settings):
     if settings.script_name == "sglatrack":
         focal_loss = FocalLoss()
         objective = {'giou': giou_loss, 'l1': l1_loss, 'focal': focal_loss, 'cls': BCEWithLogitsLoss()}
-        loss_weight = {'giou': cfg.TRAIN.GIOU_WEIGHT, 'l1': cfg.TRAIN.L1_WEIGHT, 'focal': 1., 'cls': 1.0 , 'cos':0.2}
+        loss_weight = {
+            'giou': cfg.TRAIN.GIOU_WEIGHT,
+            'l1': cfg.TRAIN.L1_WEIGHT,
+            'focal': 1.,
+            'cls': 1.0,
+            'cos': 0.2,
+            'sim_loss': float(getattr(cfg.TRAIN, "SIM_LOSS_WEIGHT", 0.0002)),
+            'distill_loss': float(getattr(cfg.TRAIN, "DISTILL_LOSS_WEIGHT", 0.00002)),
+        }
         actor = sglatrackActor(net=net, objective=objective, loss_weight=loss_weight, settings=settings, cfg=cfg)
+        if is_distill:
+            actor.net_teacher = net_teacher
+        student = net.module if hasattr(net, "module") else net
+        student.is_distill_training = bool(is_distill)
     else:
         raise ValueError("illegal script name")
 

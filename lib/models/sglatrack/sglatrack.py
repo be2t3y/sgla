@@ -1,10 +1,11 @@
-import math
 import os
-from typing import List
 
+import cv2
+import numpy as np
 import torch
 from torch import nn
 from torch.nn.modules.transformer import _get_clones
+from scipy.stats import multivariate_normal
 
 from lib.models.layers.head import build_box_head
 from lib.models.sglatrack.vit import vit_base_patch16_224
@@ -14,7 +15,8 @@ from lib.utils.box_ops import box_xyxy_to_cxcywh
 
 class sglatrack(nn.Module):
 
-    def __init__(self, transformer, box_head, aux_loss=False, head_type="CORNER"):
+    def __init__(self, transformer, box_head, aux_loss=False, head_type="CORNER", feat_len_t=64,
+                 orr_enable=False, orr_random_mask=False, orr_block_sz=16, orr_mask_ratio=0.3, orr_gaussian_sigma=64):
         """ Initializes the model.
         Parameters:
             transformer: torch module of the transformer architecture.
@@ -30,21 +32,120 @@ class sglatrack(nn.Module):
             self.feat_sz_s = int(box_head.feat_sz)
             self.feat_len_s = int(box_head.feat_sz ** 2)
 
+        self.feat_len_t = int(feat_len_t)
+        self.orr_enable = bool(orr_enable)
+        self.orr_random_mask = bool(orr_random_mask)
+        self.orr_block_sz = int(orr_block_sz)
+        self.orr_mask_ratio = float(orr_mask_ratio)
+        self.orr_gaussian_sigma = float(orr_gaussian_sigma)
+        self._orr_intensity = None
+
+        self.is_distill_training = False
+
         if self.aux_loss:
             self.box_head = _get_clones(self.box_head, 6)
+
+    def random_masking(self, n, h, w, d, mask_ratio, device):
+        len_keep = int(h * w * (1 - mask_ratio))
+        noise = torch.rand(n, h, w, device=device)
+        noise_vec = torch.reshape(noise, (n, h * w))
+        ids_shuffle = torch.argsort(noise_vec, dim=1)
+        ids_restore = torch.argsort(ids_shuffle, dim=1)
+        mask = torch.ones([n, h, w], device=device)
+        mask_vec = torch.reshape(mask, (n, h * w))
+        mask_vec[:, :len_keep] = 0
+        mask_vec = torch.gather(mask_vec, dim=1, index=ids_restore)
+        mask = torch.reshape(mask_vec, (n, h, w))
+        return mask
+
+    def simulate_inhomogeneous_poisson_process(self, intensity):
+        num_points = np.random.poisson(intensity.max() * np.prod(intensity.shape), 1)[0]
+        x_points = (np.floor(np.random.uniform(0, intensity.shape[1], num_points))).astype(np.int32)
+        y_points = (np.floor(np.random.uniform(0, intensity.shape[0], num_points))).astype(np.int32)
+        accept_prob = intensity[x_points, y_points] / intensity.max()
+        accepted_points = np.random.rand(num_points) < accept_prob
+        x_points = x_points[accepted_points]
+        y_points = y_points[accepted_points]
+        return x_points, y_points
+
+    def random_masking_cox_process(self, intensity, n, h, w, mask_ratio, device):
+        poisson_mean = int(h * w * mask_ratio)
+        poisson_samples = np.random.poisson(poisson_mean, n)
+        masks = []
+        for i in range(n):
+            inh_poisson_intensity = poisson_samples[i] * intensity
+            x_points, y_points = self.simulate_inhomogeneous_poisson_process(inh_poisson_intensity)
+            mask = torch.ones([1, h, w], device=device)
+            mask[:, y_points, x_points] = 0
+            masks.append(mask)
+        return torch.cat(masks, dim=0)
+
+    def masking_cox_process(self, n, intensity, block_sz, mask_ratio, device):
+        h, w = intensity.shape
+        hb = int(h / block_sz)
+        wb = int(w / block_sz)
+        assert h % block_sz == 0 and w % block_sz == 0, 'template size must be divisible by ORR_BLOCK_SZ'
+        intensity = cv2.resize(intensity, dsize=(wb, hb))
+        intensity = intensity / intensity.sum()
+        mask = self.random_masking_cox_process(intensity, n, hb, wb, mask_ratio, device)
+        mask = torch.nn.functional.interpolate(mask.unsqueeze(1), size=(h, w), mode='nearest')
+        return mask
+
+    def masking(self, template, block_sz, mask_ratio, device):
+        n, d, h, w = template.shape
+        hb = h // block_sz
+        wb = w // block_sz
+        assert h % block_sz == 0 and w % block_sz == 0, 'template size must be divisible by ORR_BLOCK_SZ'
+        mask = self.random_masking(n, hb, wb, d, mask_ratio, device)
+        mask = torch.nn.functional.interpolate(mask.unsqueeze(1), size=(h, w), mode='nearest')
+        return mask
 
     def forward(self, template: torch.Tensor,
                 search: torch.Tensor,
                 ce_template_mask=None,
                 ce_keep_rate=None,
                 return_last_attn=False,
+                is_distill=False,
                 ):
+        mask = None
+        if (not is_distill) and self.training and self.orr_enable:
+            if self.orr_random_mask:
+                mask = self.masking(template, self.orr_block_sz, self.orr_mask_ratio, template.device)
+                mask = mask.repeat(1, template.shape[1], 1, 1)
+            else:
+                if self._orr_intensity is None:
+                    template_r = int(template.shape[-1] / 2)
+                    sigma = self.orr_gaussian_sigma
+                    gx, gy = np.mgrid[-template_r:template_r:1, -template_r:template_r:1]
+                    pos = np.dstack((gx, gy))
+                    intensity = multivariate_normal(
+                        [0.0, 0.0],
+                        [[sigma * template_r, 0.0], [0.0, sigma * template_r]],
+                    ).pdf(pos)
+                    intensity = intensity / intensity.sum()
+                    self._orr_intensity = intensity
+                intensity = self._orr_intensity
+                mask = self.masking_cox_process(
+                    template.shape[0], intensity, self.orr_block_sz, self.orr_mask_ratio, template.device
+                )
+                mask = mask.repeat(1, template.shape[1], 1, 1)
+
         x, aux_dict = self.backbone(z=template, x=search,
                                     ce_template_mask=ce_template_mask,
                                     ce_keep_rate=ce_keep_rate,
                                     return_last_attn=return_last_attn, )
 
-        # Forward head
+        if self.training and (not is_distill) and mask is not None:
+            x1, _ = self.backbone(z=template * mask, x=search,
+                                  ce_template_mask=ce_template_mask,
+                                  ce_keep_rate=ce_keep_rate,
+                                  return_last_attn=return_last_attn, )
+            sim_loss = torch.nn.functional.mse_loss(
+                x[:, :self.feat_len_t], x1[:, :self.feat_len_t].detach()
+            )
+        else:
+            sim_loss = torch.tensor(0.0, device=x.device)
+
         feat_last = x
         if isinstance(x, list):
             feat_last = x[-1]
@@ -52,6 +153,7 @@ class sglatrack(nn.Module):
 
         out.update(aux_dict)
         out['backbone_feat'] = x
+        out['sim_loss'] = sim_loss
         return out
 
     def forward_test(self, template: torch.Tensor,
@@ -134,14 +236,28 @@ def build_sglatrack(cfg, training=True):
 
     box_head = build_box_head(cfg, hidden_dim)
 
+    tpl = int(cfg.DATA.TEMPLATE.SIZE)
+    stride = int(cfg.MODEL.BACKBONE.STRIDE)
+    feat_len_t = (tpl // stride) ** 2
+
     model = sglatrack(
         backbone,
         box_head,
         aux_loss=False,
         head_type=cfg.MODEL.HEAD.TYPE,
+        feat_len_t=feat_len_t,
+        orr_enable=getattr(cfg.MODEL, "ORR_ENABLE", False),
+        orr_random_mask=getattr(cfg.MODEL, "ORR_RANDOM_MASK", False),
+        orr_block_sz=int(getattr(cfg.MODEL, "ORR_BLOCK_SZ", 16)),
+        orr_mask_ratio=float(getattr(cfg.MODEL, "ORR_MASK_RATIO", 0.3)),
+        orr_gaussian_sigma=float(getattr(cfg.MODEL, "ORR_GAUSSIAN_SIGMA", 64)),
     )
 
-    if 'sglatrack' in cfg.MODEL.PRETRAIN_FILE and training:
+    _pf = str(cfg.MODEL.PRETRAIN_FILE or '')
+    _load_track_ckpt = training and _pf and (
+        'sglatrack' in _pf or _pf.endswith('.pth.tar') or _pf.endswith('.pth') or os.path.isfile(_pf)
+    )
+    if _load_track_ckpt:
         checkpoint = torch.load(cfg.MODEL.PRETRAIN_FILE, map_location="cpu")
         checkpoint_model = checkpoint["net"]
 

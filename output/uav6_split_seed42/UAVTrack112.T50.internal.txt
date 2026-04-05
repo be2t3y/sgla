@@ -1,0 +1,56 @@
+car3
+tree
+car16_3
+group1
+football player2_1
+dark car2-n
+car9_1
+uav1
+car7_3
+basketball player3-n
+car2
+basketball player4-n
+uav4
+car1-n
+car16_2
+car5
+human3
+excavator
+uav5
+courier1
+duck1_2
+bike6
+tennis player1_2
+swan
+basketball player3
+tricycle1_2
+car7_1
+group3_3
+bike3
+group4_1
+motor2
+bus2-n
+uav3_1
+car8
+truck_night
+car13
+car17
+duck1_1
+human
+container
+basketball player1_2-n
+bell tower
+couple
+sand truck-n
+car11
+human2
+car1
+bike4_2
+tower crane
+air conditioning box1
+parterre2
+group3_1
+courier2
+bike5
+car2-n
+football player1_3

@@ -95,12 +95,17 @@ class UAV123(BaseVideoDataset):
     Supports split='train', 'val', or None. Uses train_split.txt/val_split.txt when split is set.
     """
 
-    def __init__(self, root=None, image_loader=jpeg4py_loader_w_failsafe, split=None, data_fraction=None):
+    def __init__(self, root=None, image_loader=jpeg4py_loader_w_failsafe, split=None, data_fraction=None,
+                 sequence_subset=None):
         root = env_settings().uav123_dir if root is None else root
         super().__init__('UAV123', root, image_loader)
         self.split = split
         self.seq_info_list = _get_uav123_sequence_info()
         self.sequence_list = self._build_sequence_list()
+
+        if sequence_subset is not None:
+            sub = set(sequence_subset)
+            self.sequence_list = [n for n in self.sequence_list if n in sub]
 
         if data_fraction is not None:
             self.sequence_list = random.sample(

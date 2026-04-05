@@ -1,10 +1,15 @@
 from . import BaseActor
 from lib.utils.misc import NestedTensor
-from lib.utils.box_ops import box_cxcywh_to_xyxy, box_xywh_to_xyxy
+from lib.utils.box_ops import box_cxcywh_to_xyxy, box_xywh_to_xyxy, generalized_box_iou
 import torch
+import torch.nn.functional as F
 from lib.utils.merge import merge_template_search
 from ...utils.heapmap_utils import generate_heatmap
 from ...utils.ce_utils import generate_mask_cond, adjust_keep_rate
+
+
+def _unwrap_module(net):
+    return net.module if hasattr(net, 'module') else net
 
 
 class sglatrackActor(BaseActor):
@@ -14,6 +19,7 @@ class sglatrackActor(BaseActor):
         self.settings = settings
         self.bs = self.settings.batchsize  # batch size
         self.cfg = cfg
+        self.net_teacher = None
 
     def __call__(self, data):
         """
@@ -64,11 +70,33 @@ class sglatrackActor(BaseActor):
         if len(template_list) == 1:
             template_list = template_list[0]
 
+        student = _unwrap_module(self.net)
+        if getattr(student, 'is_distill_training', False) and self.net_teacher is not None:
+            with torch.no_grad():
+                out_teacher = self.net_teacher(
+                    template=template_list,
+                    search=search_img,
+                    ce_template_mask=box_mask_z,
+                    ce_keep_rate=ce_keep_rate,
+                    return_last_attn=False,
+                    is_distill=True,
+                )
+
         out_dict = self.net(template=template_list,
                             search=search_img,
                             ce_template_mask=box_mask_z,
                             ce_keep_rate=ce_keep_rate,
-                            return_last_attn=False)
+                            return_last_attn=False,
+                            is_distill=False)
+
+        if getattr(student, 'is_distill_training', False) and self.net_teacher is not None:
+            feat_t = out_teacher['backbone_feat']
+            feat_s = out_dict['backbone_feat']
+            b = feat_s.shape[0]
+            distill_loss = torch.stack(
+                [F.mse_loss(feat_t[i], feat_s[i]) for i in range(b)]
+            )
+            out_dict['distill_loss'] = distill_loss
 
         return out_dict
 
@@ -89,8 +117,10 @@ class sglatrackActor(BaseActor):
         # compute giou and iou
         try:
             giou_loss, iou = self.objective['giou'](pred_boxes_vec, gt_boxes_vec)  # (BN,4) (BN,4)
-        except:
+            giou_vec, _ = generalized_box_iou(pred_boxes_vec, gt_boxes_vec)
+        except Exception:
             giou_loss, iou = torch.tensor(0.0).cuda(), torch.tensor(0.0).cuda()
+            giou_vec = torch.zeros(pred_boxes_vec.shape[0], device=pred_boxes_vec.device)
         # compute l1 loss
         l1_loss = self.objective['l1'](pred_boxes_vec, gt_boxes_vec)  # (BN,4) (BN,4)
         # compute location loss
@@ -110,7 +140,27 @@ class sglatrackActor(BaseActor):
         pro_target.scatter_(1, indices.unsqueeze(1), 1)
         pro = pred_dict['pro']
         pro_loss = self.objective['l1'](pro, pro_target)
-        loss = self.loss_weight['giou'] * giou_loss + self.loss_weight['l1'] * l1_loss + self.loss_weight['focal'] * location_loss + 0.2*pro_loss
+        sim_w = float(self.loss_weight.get('sim_loss', 0.0))
+        sim_term = sim_w * pred_dict.get('sim_loss', torch.tensor(0.0, device=l1_loss.device))
+        loss = (
+            self.loss_weight['giou'] * giou_loss
+            + self.loss_weight['l1'] * l1_loss
+            + self.loss_weight['focal'] * location_loss
+            + 0.2 * pro_loss
+            + sim_term
+        )
+
+        student = _unwrap_module(self.net)
+        if getattr(student, 'is_distill_training', False) and 'distill_loss' in pred_dict:
+            d_w = float(self.loss_weight.get('distill_loss', 0.0))
+            tau_0 = float(getattr(self.cfg.TRAIN, 'AFKD_TAU0', 10))
+            rho = float(getattr(self.cfg.TRAIN, 'AFKD_RHO', 10))
+            distill_loss = pred_dict['distill_loss']
+            one_m_g = 1.0 - giou_vec
+            coef = d_w * (tau_0 + rho * (one_m_g - one_m_g.mean()))
+            distill_term = (coef * distill_loss).mean()
+            loss = loss + distill_term
+
         if return_status:
             # status for log
             mean_iou = iou.detach().mean()
@@ -120,6 +170,10 @@ class sglatrackActor(BaseActor):
                       "Loss/location": location_loss.item(),
                       "pro_loss": pro_loss.item(),
                       "IoU": mean_iou.item()}
+            if isinstance(pred_dict.get('sim_loss'), torch.Tensor):
+                status["Loss/sim"] = float(pred_dict['sim_loss'].detach().item())
+            if getattr(student, 'is_distill_training', False) and 'distill_loss' in pred_dict:
+                status["Loss/distill"] = float(pred_dict['distill_loss'].detach().mean().item())
             return loss, status
         else:
             return loss

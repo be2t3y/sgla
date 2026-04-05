@@ -17,6 +17,15 @@ cfg.MODEL.BACKBONE_MULTIPLIER = 0.1
 cfg.MODEL.PRETRAIN_FILE = "mae_pretrain_vit_base.pth"
 cfg.MODEL.EXTRA_MERGER = False
 
+# ORTrack-style ORR (template masking) + optional AFKD distillation
+cfg.MODEL.IS_DISTILL = False
+cfg.MODEL.TEACHER_PRETRAIN_FILE = ""
+cfg.MODEL.ORR_ENABLE = False
+cfg.MODEL.ORR_RANDOM_MASK = False
+cfg.MODEL.ORR_BLOCK_SZ = 16
+cfg.MODEL.ORR_MASK_RATIO = 0.3
+cfg.MODEL.ORR_GAUSSIAN_SIGMA = 64
+
 cfg.MODEL.RETURN_INTER = False
 cfg.MODEL.RETURN_STAGES = []
 
@@ -73,6 +82,11 @@ cfg.TRAIN.CE_START_EPOCH = 20  # candidate elimination start epoch
 cfg.TRAIN.CE_WARM_EPOCH = 80  # candidate elimination warm up epoch
 cfg.TRAIN.DROP_PATH_RATE = 0.1  # drop path rate for ViT backbone
 
+cfg.TRAIN.SIM_LOSS_WEIGHT = 0.0002
+cfg.TRAIN.DISTILL_LOSS_WEIGHT = 0.00002
+cfg.TRAIN.AFKD_TAU0 = 10
+cfg.TRAIN.AFKD_RHO = 10
+
 # TRAIN.SCHEDULER
 cfg.TRAIN.SCHEDULER = edict()
 cfg.TRAIN.SCHEDULER.TYPE = "step"
@@ -84,6 +98,7 @@ cfg.DATA.SAMPLER_MODE = "causal"  # sampling methods
 cfg.DATA.MEAN = [0.485, 0.456, 0.406]
 cfg.DATA.STD = [0.229, 0.224, 0.225]
 cfg.DATA.MAX_SAMPLE_INTERVAL = 200
+cfg.DATA.MIXED_UAV_SPLIT_SEED = 42
 # DATA.TRAIN
 cfg.DATA.TRAIN = edict()
 cfg.DATA.TRAIN.DATASETS_NAME = ["LASOT", "GOT10K_vottrain"]
