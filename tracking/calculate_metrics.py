@@ -1,6 +1,10 @@
 """
 計算追蹤結果的 AUC 和 Precision
-Usage: python tracking/calculate_metrics.py --tracker sglatrack --param deit_distilled --dataset uav123
+Usage:
+  python tracking/calculate_metrics.py --tracker sglatrack --param deit_distilled --dataset uav123
+  # 與 test.py --sequence_list_file 子集一致時，請帶同一個清單，否則會缺結果檔而報錯
+  python tracking/calculate_metrics.py --tracker sglatrack --param deit_distilled_coco_got10k_uav6_half \\
+      --dataset uavtrack112 --sequence_list_file output/uav6_split_seed42/UAVTrack112.V50.for_test.txt
 """
 import _init_paths
 import argparse
@@ -10,8 +14,20 @@ matplotlib.use('Agg')  # 無 display 環境下使用
 import matplotlib.pyplot as plt
 from lib.test.analysis.plot_results import print_results, check_and_load_precomputed_results
 from lib.test.evaluation import get_dataset, trackerlist
+from lib.test.evaluation.data import SequenceList
 from lib.test.evaluation.environment import env_settings
 import torch
+
+
+def _read_sequence_list_file(path):
+    names = []
+    with open(path, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            names.append(line)
+    return names
 
 
 def parse_args():
@@ -19,6 +35,10 @@ def parse_args():
     parser.add_argument('--tracker', type=str, default='sglatrack', help='Tracker 名稱')
     parser.add_argument('--param', type=str, default='deit_distilled', help='參數檔名稱')
     parser.add_argument('--dataset', type=str, default='uav123', help='資料集名稱 (uav123, uav123_10fps, lasot, etc.)')
+    parser.add_argument(
+        '--sequence_list_file', type=str, default=None,
+        help='與 tracking/test.py 相同：每行一個 sequence 名稱，只對這些序列彙總（須已有對應 .txt 結果）',
+    )
     parser.add_argument('--runid', type=int, default=None, help='Run ID (可選)')
     parser.add_argument('--display_name', type=str, default=None, help='顯示名稱 (可選)')
     parser.add_argument('--merge', action='store_true', help='合併多次執行的結果')
@@ -130,9 +150,20 @@ def main():
         display_name=display_name
     ))
     
-    # 載入資料集
+    # 載入資料集（可選：與 test 相同的子集清單）
     dataset = get_dataset(args.dataset)
-    
+    if args.sequence_list_file is not None:
+        wanted = set(_read_sequence_list_file(args.sequence_list_file))
+        if not wanted:
+            raise ValueError("Sequence list file is empty: %s" % args.sequence_list_file)
+        dataset = SequenceList([s for s in dataset if s.name in wanted])
+        missing = wanted - set(s.name for s in dataset)
+        if missing:
+            print("[calculate_metrics] Warning: %d names in list not found in dataset %s (showing up to 10): %s"
+                  % (len(missing), args.dataset, list(sorted(missing))[:10]))
+        if len(dataset) == 0:
+            raise ValueError("No sequences left after filtering; check names match evaluation dataset.")
+
     # 計算並列印結果
     print_results(
         trackers,

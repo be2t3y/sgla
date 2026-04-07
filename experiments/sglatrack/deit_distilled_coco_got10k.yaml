@@ -39,6 +39,7 @@ DATA:
 
 MODEL:
   PRETRAIN_FILE: "output/checkpoints/train/sglatrack/deit_distilled/sglatrack_ep0297.pth.tar"
+  #PRETRAIN_FILE: "output/checkpoints/train/sglatrack/deit_distilled/deit_tiny_distilled_patch16_224.pth"
   EXTRA_MERGER: False
   RETURN_INTER: False
   RETURN_STAGES: []
@@ -62,15 +63,15 @@ TRAIN:
   BACKBONE_MULTIPLIER: 0.1
   DROP_PATH_RATE: 0.1
   BATCH_SIZE: 32
-  EPOCH: 300
+  EPOCH: 50
   GIOU_WEIGHT: 2.0
   L1_WEIGHT: 5.0
   GRAD_CLIP_NORM: 0.1
   LR: 5e-5
   LR_BACKBONE: 5e-6
-  LR_DROP_EPOCH: 240
+  LR_DROP_EPOCH: 40
   # DataLoader 用的 CPU 核心數，可依機器改大（例：8、16）加速讀資料
-  NUM_WORKER: 8
+  NUM_WORKER: 4
   OPTIMIZER: ADAMW
   PRINT_INTERVAL: 50
   SCHEDULER:
@@ -84,7 +85,7 @@ TRAIN:
   FREEZE_LAYERS: [0, 1, 2]
 
 TEST:
-  EPOCH: 299
+  EPOCH: 50
   SEARCH_FACTOR: 5.0
   SEARCH_SIZE: 256
   TEMPLATE_FACTOR: 2.0

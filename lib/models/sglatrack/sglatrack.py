@@ -259,6 +259,12 @@ def build_sglatrack(cfg, training=True):
     )
     if _load_track_ckpt:
         checkpoint = torch.load(cfg.MODEL.PRETRAIN_FILE, map_location="cpu")
+        if "net" not in checkpoint:
+            # 官方 DeiT 等分類權重為 checkpoint["model"]，已在 deit_tiny_distilled_patch16_224(pretrained=...) 載入骨幹。
+            print(
+                "Skip SGLATrack checkpoint load: no key 'net' in file (ImageNet-style weights use 'model')."
+            )
+            return model
         checkpoint_model = checkpoint["net"]
 
         # Handle position embedding size mismatch
