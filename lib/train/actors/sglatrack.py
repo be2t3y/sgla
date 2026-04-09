@@ -40,12 +40,12 @@ class sglatrackActor(BaseActor):
         return loss, status
 
     def forward_pass(self, data):
-        # currently only support 1 template and 1 search region
-        assert len(data['template_images']) == 1
+        # Support multi-template training; keep single-search behavior.
         assert len(data['search_images']) == 1
 
         template_list = []
-        for i in range(self.settings.num_template):
+        num_template = min(int(self.settings.num_template), int(len(data['template_images'])))
+        for i in range(num_template):
             template_img_i = data['template_images'][i].view(-1,
                                                              *data['template_images'].shape[2:])  # (batch, 3, 128, 128)
             # template_att_i = data['template_att'][i].view(-1, *data['template_att'].shape[2:])  # (batch, 128, 128)
@@ -71,6 +71,7 @@ class sglatrackActor(BaseActor):
             template_list = template_list[0]
 
         student = _unwrap_module(self.net)
+        cnn_adapter = getattr(student, 'distill_cnn_adapter', None)
         if getattr(student, 'is_distill_training', False) and self.net_teacher is not None:
             with torch.no_grad():
                 out_teacher = self.net_teacher(
@@ -89,7 +90,15 @@ class sglatrackActor(BaseActor):
                             return_last_attn=False,
                             is_distill=False)
 
-        if getattr(student, 'is_distill_training', False) and self.net_teacher is not None:
+        if getattr(student, 'is_distill_training', False) and cnn_adapter is not None:
+            feat_t = cnn_adapter(template_list, search_img)
+            feat_s = out_dict['backbone_feat']
+            b = feat_s.shape[0]
+            distill_loss = torch.stack(
+                [F.mse_loss(feat_t[i], feat_s[i]) for i in range(b)]
+            )
+            out_dict['distill_loss'] = distill_loss
+        elif getattr(student, 'is_distill_training', False) and self.net_teacher is not None:
             feat_t = out_teacher['backbone_feat']
             feat_s = out_dict['backbone_feat']
             b = feat_s.shape[0]

@@ -12,6 +12,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from .base_functions import *
 # network related
 from lib.models.sglatrack import build_sglatrack
+from lib.models.sglatrack.cnn_tracking_teacher import build_cnn_tracking_teacher
 # forward propagation related
 from lib.train.actors import sglatrackActor
 # for import modules
@@ -56,15 +57,25 @@ def run(settings):
     net_teacher = None
     is_distill = bool(getattr(cfg.MODEL, "IS_DISTILL", False))
     if settings.script_name == "sglatrack":
-        if is_distill:
+        teacher_type = str(getattr(cfg.MODEL, "TEACHER_TYPE", "sglatrack")).lower()
+        if is_distill and teacher_type not in ("sglatrack", "cnn"):
+            raise ValueError("MODEL.TEACHER_TYPE must be 'sglatrack' or 'cnn' when IS_DISTILL=True.")
+        if is_distill and teacher_type == "sglatrack":
             tpath = getattr(cfg.MODEL, "TEACHER_PRETRAIN_FILE", "") or ""
             if not str(tpath).strip():
-                raise ValueError("MODEL.IS_DISTILL=True requires MODEL.TEACHER_PRETRAIN_FILE (teacher checkpoint path).")
+                raise ValueError(
+                    "MODEL.IS_DISTILL=True with TEACHER_TYPE=sglatrack requires MODEL.TEACHER_PRETRAIN_FILE."
+                )
             cfg_teacher = copy.deepcopy(cfg)
             cfg_teacher.MODEL.PRETRAIN_FILE = tpath
             cfg_teacher.MODEL.IS_DISTILL = False
             net_teacher = build_sglatrack(cfg_teacher, training=True)
         net = build_sglatrack(cfg)
+        if is_distill and teacher_type == "cnn":
+            net_teacher = None
+            net.add_module("distill_cnn_adapter", build_cnn_tracking_teacher(cfg))
+            if settings.local_rank in [-1, 0]:
+                print("[Model] CNN teacher (timm) attached as net.distill_cnn_adapter.", flush=True)
     else:
         raise ValueError("illegal script name")
 

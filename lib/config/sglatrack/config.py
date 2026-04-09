@@ -19,6 +19,9 @@ cfg.MODEL.EXTRA_MERGER = False
 
 # ORTrack-style ORR (template masking) + optional AFKD distillation
 cfg.MODEL.IS_DISTILL = False
+cfg.MODEL.TEACHER_TYPE = "sglatrack"  # "sglatrack" | "cnn"
+cfg.MODEL.TEACHER_CNN_NAME = "regnety_160"
+cfg.MODEL.TEACHER_CNN_PRETRAINED = True
 cfg.MODEL.TEACHER_PRETRAIN_FILE = ""
 cfg.MODEL.ORR_ENABLE = False
 cfg.MODEL.ORR_RANDOM_MASK = False
@@ -99,6 +102,11 @@ cfg.DATA.MEAN = [0.485, 0.456, 0.406]
 cfg.DATA.STD = [0.229, 0.224, 0.225]
 cfg.DATA.MAX_SAMPLE_INTERVAL = 200
 cfg.DATA.MIXED_UAV_SPLIT_SEED = 42
+cfg.DATA.RAND_AUGMENT = edict()
+cfg.DATA.RAND_AUGMENT.ENABLE = False
+cfg.DATA.RAND_AUGMENT.NUM_OPS = 2
+cfg.DATA.RAND_AUGMENT.MAGNITUDE = 9
+cfg.DATA.RAND_AUGMENT.PROB = 0.7
 # DATA.TRAIN
 cfg.DATA.TRAIN = edict()
 cfg.DATA.TRAIN.DATASETS_NAME = ["LASOT", "GOT10K_vottrain"]
@@ -160,7 +168,7 @@ def gen_config(config_file):
 
 
 def _update_config(base_cfg, exp_cfg):
-    if isinstance(base_cfg, dict) and isinstance(exp_cfg, edict):
+    if isinstance(base_cfg, dict) and isinstance(exp_cfg, dict):
         for k, v in exp_cfg.items():
             if k in base_cfg:
                 if not isinstance(v, dict):

@@ -187,9 +187,30 @@ def build_dataloaders(cfg, settings):
     transform_joint = tfm.Transform(tfm.ToGrayscale(probability=0.05),
                                     tfm.RandomHorizontalFlip(probability=0.5))
 
-    transform_train = tfm.Transform(tfm.ToTensorAndJitter(0.2),
-                                    tfm.RandomHorizontalFlip_Norm(probability=0.5),
-                                    tfm.Normalize(mean=cfg.DATA.MEAN, std=cfg.DATA.STD))
+    train_tfms = [
+        tfm.ToTensorAndJitter(0.2),
+        tfm.RandomHorizontalFlip_Norm(probability=0.5),
+        tfm.Normalize(mean=cfg.DATA.MEAN, std=cfg.DATA.STD),
+    ]
+    ra = getattr(cfg.DATA, "RAND_AUGMENT", None)
+    if ra is not None and bool(getattr(ra, "ENABLE", False)):
+        train_tfms.insert(
+            0,
+            tfm.RandAugmentColor(
+                num_ops=int(getattr(ra, "NUM_OPS", 2)),
+                magnitude=int(getattr(ra, "MAGNITUDE", 9)),
+                probability=float(getattr(ra, "PROB", 0.7)),
+            ),
+        )
+        print(
+            "[Data] RandAugmentColor: num_ops={}, magnitude={}, prob={}.".format(
+                getattr(ra, "NUM_OPS", 2),
+                getattr(ra, "MAGNITUDE", 9),
+                getattr(ra, "PROB", 0.7),
+            ),
+            flush=True,
+        )
+    transform_train = tfm.Transform(*train_tfms)
 
     transform_val = tfm.Transform(tfm.ToTensor(),
                                   tfm.Normalize(mean=cfg.DATA.MEAN, std=cfg.DATA.STD))

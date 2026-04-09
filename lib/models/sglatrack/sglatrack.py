@@ -100,6 +100,16 @@ class sglatrack(nn.Module):
         mask = torch.nn.functional.interpolate(mask.unsqueeze(1), size=(h, w), mode='nearest')
         return mask
 
+    def _merge_template_input(self, template):
+        """Allow single-template tensor or multi-template list/tuple."""
+        if isinstance(template, (list, tuple)):
+            if len(template) == 0:
+                raise ValueError("template list is empty")
+            if len(template) == 1:
+                return template[0]
+            return torch.stack(template, dim=0).mean(dim=0)
+        return template
+
     def forward(self, template: torch.Tensor,
                 search: torch.Tensor,
                 ce_template_mask=None,
@@ -107,6 +117,7 @@ class sglatrack(nn.Module):
                 return_last_attn=False,
                 is_distill=False,
                 ):
+        template = self._merge_template_input(template)
         mask = None
         if (not is_distill) and self.training and self.orr_enable:
             if self.orr_random_mask:
@@ -162,6 +173,7 @@ class sglatrack(nn.Module):
                 ce_keep_rate=None,
                 return_last_attn=False,
                 ):
+        template = self._merge_template_input(template)
         x, aux_dict = self.backbone.forward_test(z=template, x=search )
 
         # Forward head
