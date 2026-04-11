@@ -8,6 +8,8 @@ from torch.nn.modules.transformer import _get_clones
 from scipy.stats import multivariate_normal
 
 from lib.models.layers.head import build_box_head
+from lib.models.layers.transformer_dec import build_transformer_dec
+from lib.models.layers.position_encoding_aqa import build_aqa_position_encoding
 from lib.models.sglatrack.vit import vit_base_patch16_224
 from lib.models.sglatrack.deit import deit_tiny_distilled_patch16_224, deit_tiny_t2t_distilled_patch16_224
 from lib.utils.box_ops import box_xyxy_to_cxcywh
@@ -16,7 +18,8 @@ from lib.utils.box_ops import box_xyxy_to_cxcywh
 class sglatrack(nn.Module):
 
     def __init__(self, transformer, box_head, aux_loss=False, head_type="CORNER", feat_len_t=64,
-                 orr_enable=False, orr_random_mask=False, orr_block_sz=16, orr_mask_ratio=0.3, orr_gaussian_sigma=64):
+                 orr_enable=False, orr_random_mask=False, orr_block_sz=16, orr_mask_ratio=0.3, orr_gaussian_sigma=64,
+                 aqa_query_enable=False, transformer_dec=None, aqa_pos_enc=None, query_embed=None):
         """ Initializes the model.
         Parameters:
             transformer: torch module of the transformer architecture.
@@ -41,6 +44,17 @@ class sglatrack(nn.Module):
         self._orr_intensity = None
 
         self.is_distill_training = False
+
+        self.aqa_query_enable = bool(aqa_query_enable)
+        if self.aqa_query_enable:
+            assert transformer_dec is not None and aqa_pos_enc is not None and query_embed is not None
+            self.transformer_dec = transformer_dec
+            self.aqa_pos_enc = aqa_pos_enc
+            self.query_embed = query_embed
+        else:
+            self.transformer_dec = None
+            self.aqa_pos_enc = None
+            self.query_embed = None
 
         if self.aux_loss:
             self.box_head = _get_clones(self.box_head, 6)
@@ -116,8 +130,19 @@ class sglatrack(nn.Module):
                 ce_keep_rate=None,
                 return_last_attn=False,
                 is_distill=False,
+                tgt_pre=None,
                 ):
         template = self._merge_template_input(template)
+        base_batch = template.shape[0]
+        num_search = 1
+        # 多 search 時 actor 傳 list；驗證階段 eval() 會走 backbone.forward_test，必須先合成 tensor，否則 x.shape 會報錯。
+        if self.aqa_query_enable and (not is_distill) and isinstance(search, (list, tuple)):
+            if len(search) == 0:
+                raise ValueError("search list is empty")
+            num_search = len(search)
+            search = torch.cat(search, dim=0)
+            template = template.repeat(num_search, 1, 1, 1)
+
         mask = None
         if (not is_distill) and self.training and self.orr_enable:
             if self.orr_random_mask:
@@ -160,7 +185,14 @@ class sglatrack(nn.Module):
         feat_last = x
         if isinstance(x, list):
             feat_last = x[-1]
-        out = self.forward_head(feat_last, None)
+
+        if self.aqa_query_enable and (not is_distill):
+            out = self._forward_aqa_path(
+                feat_last, self.training, tgt_pre, gt_score_map=None,
+                num_search=num_search, base_batch=base_batch
+            )
+        else:
+            out = self.forward_head(feat_last, None)
 
         out.update(aux_dict)
         out['backbone_feat'] = x
@@ -172,20 +204,111 @@ class sglatrack(nn.Module):
                 ce_template_mask=None,
                 ce_keep_rate=None,
                 return_last_attn=False,
+                tgt_pre=None,
                 ):
         template = self._merge_template_input(template)
-        x, aux_dict = self.backbone.forward_test(z=template, x=search )
+        x, aux_dict = self.backbone.forward_test(z=template, x=search)
 
-        # Forward head
         feat_last = x
         if isinstance(x, list):
             feat_last = x[-1]
-        out = self.forward_head(feat_last, None)
+
+        if self.aqa_query_enable:
+            out = self._forward_aqa_path(
+                feat_last, False, tgt_pre, gt_score_map=None,
+                num_search=1, base_batch=feat_last.shape[0]
+            )
+        else:
+            out = self.forward_head(feat_last, None)
 
         out.update(aux_dict)
         out['backbone_feat'] = x
         return out
 
+    def _forward_aqa_path(self, feat_last, training, tgt_pre, gt_score_map=None, num_search=1, base_batch=None):
+        """AQATrack: learned query embedding + transformer decoder + STM fusion into center/corner head."""
+        B, _N, C = feat_last.shape
+        query_embeding = self.query_embed.weight.unsqueeze(1)
+        assert C == self.query_embed.embedding_dim
+
+        pos_embed = self.aqa_pos_enc(1)
+        x_decs = []
+        tgt_out = None
+
+        if training and int(num_search) > 1:
+            if base_batch is None:
+                base_batch = B // int(num_search)
+            batches = [[] for _ in range(int(base_batch))]
+            for i, token in enumerate(feat_last):
+                batches[i % int(base_batch)].append(token.unsqueeze(0))
+
+            for batch in batches:
+                tgt_all = [torch.zeros_like(query_embeding) for _ in range(int(num_search))]
+                for j, input_b in enumerate(batch):
+                    memory = input_b.transpose(0, 1)
+                    tgt_q = tgt_all[j]
+                    tgt_kv = torch.cat(tgt_all[:j + 1], dim=0)
+                    tgt = [tgt_q, tgt_kv]
+                    tgt_out = self.transformer_dec(memory, tgt, self.feat_len_s, pos_embed, query_embeding)
+                    x_decs.append(tgt_out[0])
+                    tgt_all[j] = tgt_out[0]
+            # Reorder to search-major: (s0,b0..bn,s1,b0..bn,...), matching flattened GT order.
+            x_dec = torch.cat(
+                [x_decs[i + j * int(num_search)] for i in range(int(num_search)) for j in range(int(base_batch))],
+                dim=1
+            )
+        else:
+            for b in range(B):
+                input_b = feat_last[b:b + 1]
+                memory = input_b.transpose(0, 1)
+                tgt_all = [torch.zeros_like(query_embeding)]
+                tgt_q = tgt_all[0]
+                if (not training) and tgt_pre is not None and len(tgt_pre) > 0:
+                    tgt_kv = torch.cat(tgt_pre, dim=0)
+                else:
+                    tgt_kv = torch.cat(tgt_all, dim=0)
+                tgt = [tgt_q, tgt_kv]
+                tgt_out = self.transformer_dec(memory, tgt, self.feat_len_s, pos_embed, query_embeding)
+                x_decs.append(tgt_out[0])
+            x_dec = torch.cat(x_decs, dim=1)
+
+        if (not training) and B == 1 and tgt_pre is not None:
+            latest = tgt_out[0]
+            if len(tgt_pre) < 3:
+                tgt_pre.append(latest)
+            else:
+                tgt_pre.pop(0)
+                tgt_pre.append(latest)
+
+        out = self.forward_head_stm(feat_last, x_dec, gt_score_map)
+        if not training:
+            out['tgt'] = tgt_pre
+        return out
+
+    def forward_head_stm(self, cat_feature, out_dec, gt_score_map=None):
+        enc_opt = cat_feature[:, -self.feat_len_s:]
+        dec_opt = out_dec.transpose(0, 1).transpose(1, 2)
+        att = torch.matmul(enc_opt, dec_opt)
+        opt = (enc_opt.unsqueeze(-1) * att.unsqueeze(-2)).permute((0, 3, 2, 1)).contiguous()
+        bs, Nq, C, HW = opt.size()
+        opt_feat = opt.view(-1, C, self.feat_sz_s, self.feat_sz_s)
+
+        if self.head_type == "CORNER":
+            pred_box, score_map = self.box_head(opt_feat, True)
+            outputs_coord = box_xyxy_to_cxcywh(pred_box)
+            outputs_coord_new = outputs_coord.view(bs, Nq, 4)
+            return {'pred_boxes': outputs_coord_new,
+                    'score_map': score_map}
+
+        if self.head_type == "CENTER":
+            score_map_ctr, bbox, size_map, offset_map = self.box_head(opt_feat, gt_score_map)
+            outputs_coord_new = bbox.view(bs, Nq, 4)
+            return {'pred_boxes': outputs_coord_new,
+                    'score_map': score_map_ctr,
+                    'size_map': size_map,
+                    'offset_map': offset_map}
+
+        raise NotImplementedError
 
     def forward_head(self, cat_feature, gt_score_map=None):
         """
@@ -252,6 +375,15 @@ def build_sglatrack(cfg, training=True):
     stride = int(cfg.MODEL.BACKBONE.STRIDE)
     feat_len_t = (tpl // stride) ** 2
 
+    aqa_enable = bool(getattr(cfg.MODEL.AQA_QUERY, "ENABLE", False))
+    transformer_dec = None
+    aqa_pos_enc = None
+    query_embed = None
+    if aqa_enable:
+        transformer_dec = build_transformer_dec(cfg, hidden_dim)
+        aqa_pos_enc = build_aqa_position_encoding(hidden_dim, sz=1)
+        query_embed = nn.Embedding(1, hidden_dim)
+
     model = sglatrack(
         backbone,
         box_head,
@@ -263,6 +395,10 @@ def build_sglatrack(cfg, training=True):
         orr_block_sz=int(getattr(cfg.MODEL, "ORR_BLOCK_SZ", 16)),
         orr_mask_ratio=float(getattr(cfg.MODEL, "ORR_MASK_RATIO", 0.3)),
         orr_gaussian_sigma=float(getattr(cfg.MODEL, "ORR_GAUSSIAN_SIGMA", 64)),
+        aqa_query_enable=aqa_enable,
+        transformer_dec=transformer_dec,
+        aqa_pos_enc=aqa_pos_enc,
+        query_embed=query_embed,
     )
 
     _pf = str(cfg.MODEL.PRETRAIN_FILE or '')

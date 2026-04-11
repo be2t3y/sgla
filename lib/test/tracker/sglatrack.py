@@ -20,7 +20,22 @@ class sglatrack(BaseTracker):
     def __init__(self, params, dataset_name):
         super(sglatrack, self).__init__(params)
         network = build_sglatrack(params.cfg, training=False)
-        network.load_state_dict(torch.load(self.params.checkpoint, map_location='cpu')['net'], strict=True)
+        ckpt = torch.load(self.params.checkpoint, map_location='cpu')['net']
+        # 訓練 checkpoint 可能含 distill_cnn_adapter（CNN 教師）等僅訓練用的權重，推論用模型沒有這些模組，故不可 strict=True。
+        missing, unexpected = network.load_state_dict(ckpt, strict=False)
+        if unexpected:
+            skip = [k for k in unexpected if k.startswith('distill_cnn_adapter.')]
+            if len(skip) != len(unexpected):
+                print(
+                    '[sglatrack test] load_state_dict: unexpected keys (non-teacher):',
+                    [k for k in unexpected if not k.startswith('distill_cnn_adapter.')],
+                )
+            elif skip:
+                print(
+                    '[sglatrack test] Ignored %d distill_cnn_adapter.* keys (inference-only).' % len(skip)
+                )
+        if missing:
+            print('[sglatrack test] load_state_dict missing keys:', missing)
         self.cfg = params.cfg
         self.network = network.cuda()
         self.network.eval()
@@ -46,6 +61,11 @@ class sglatrack(BaseTracker):
         # for save boxes from all queries
         self.save_all_boxes = params.save_all_boxes
         self.z_dict1 = {}
+        try:
+            self.use_aqa_query = bool(self.cfg.MODEL.AQA_QUERY.ENABLE)
+        except (AttributeError, KeyError):
+            self.use_aqa_query = False
+        self.tgt_pre = []
 
     def initialize(self, image, info: dict):
         # forward the template once
@@ -69,6 +89,8 @@ class sglatrack(BaseTracker):
             '''save all predicted boxes'''
             all_boxes_save = info['init_bbox'] * self.cfg.MODEL.NUM_OBJECT_QUERIES
             return {"all_boxes": all_boxes_save}
+        if self.use_aqa_query:
+            self.tgt_pre = []
 
     def track(self, image, info: dict = None):
         H, W, _ = image.shape
@@ -81,8 +103,18 @@ class sglatrack(BaseTracker):
             x_dict = search
             # merge the template and the search
             # run the transformer
-            out_dict = self.network(
-                template=self.z_dict1.tensors, search=x_dict.tensors, ce_template_mask=self.box_mask_z)
+            if self.use_aqa_query:
+                out_dict = self.network(
+                    template=self.z_dict1.tensors,
+                    search=x_dict.tensors,
+                    ce_template_mask=self.box_mask_z,
+                    tgt_pre=self.tgt_pre,
+                )
+                if out_dict.get('tgt') is not None:
+                    self.tgt_pre = out_dict['tgt']
+            else:
+                out_dict = self.network(
+                    template=self.z_dict1.tensors, search=x_dict.tensors, ce_template_mask=self.box_mask_z)
 
         # add hann windows
         pred_score_map = out_dict['score_map']
