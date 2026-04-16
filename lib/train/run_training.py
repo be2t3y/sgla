@@ -9,13 +9,7 @@ import torch.distributed as dist
 import random
 import numpy as np
 torch.backends.cudnn.benchmark = False
-# GPU 使用哪幾張由 lib/train/admin/local.py 的 cuda_visible_devices 控制（train + val 共用）
-try:
-    from lib.train.admin.local import EnvironmentSettings
-    _env = EnvironmentSettings()
-    os.environ["CUDA_VISIBLE_DEVICES"] = getattr(_env, "cuda_visible_devices", "0")
-except Exception:
-    os.environ.setdefault("CUDA_VISIBLE_DEVICES", "0")
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
 import _init_paths
 import lib.train.admin.settings as ws_settings

@@ -8,14 +8,12 @@ from timm.models.vision_transformer import VisionTransformer, _cfg
 from timm.models.registry import register_model
 from timm.models.layers import trunc_normal_
 from lib.models.sglatrack.base_backbone import BaseBackbone
-from lib.models.sglatrack.t2t_module import T2T_module
 
 __all__ = [
     'deit_tiny_patch16_224', 'deit_small_patch16_224', 'deit_base_patch16_224',
     'deit_tiny_distilled_patch16_224', 'deit_small_distilled_patch16_224',
     'deit_base_distilled_patch16_224', 'deit_base_patch16_384',
     'deit_base_distilled_patch16_384',
-    'deit_tiny_t2t_distilled_patch16_224',
 ]
 
 
@@ -66,31 +64,5 @@ def deit_tiny_distilled_patch16_224(pretrained=False, **kwargs):
             missing_keys, unexpected_keys = model.load_state_dict(checkpoint['model'], strict=False)
             print(missing_keys, unexpected_keys)
             print('Load pretrained model from: ' + pretrained)
-
-    return model
-
-
-def deit_tiny_t2t_distilled_patch16_224(pretrained=False, **kwargs):
-    """
-    DeiT-Tiny with T2T (Tokens-to-Token) replacing patch_embed.
-    """
-    model = DistilledVisionTransformer(
-        patch_size=16, embed_dim=192, depth=12, num_heads=3, mlp_ratio=4, qkv_bias=True,
-        norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
-    model.default_cfg = _cfg()
-
-    model.patch_embed = T2T_module(
-        img_size=224, tokens_type='performer', in_chans=3, embed_dim=192, token_dim=64
-    )
-    model.pos_embed = nn.Parameter(torch.zeros(1, 196 + 2, 192))
-    trunc_normal_(model.pos_embed, std=.02)
-
-    if pretrained:
-        checkpoint = torch.load(pretrained, map_location="cpu")
-        ckpt = checkpoint.get('model', checkpoint.get('net', checkpoint))
-        model_keys = set(model.state_dict().keys())
-        partial_state = {k: ckpt[k] for k in ckpt if not k.startswith('patch_embed') and k in model_keys}
-        model.load_state_dict(partial_state, strict=False)
-        print('Loaded pretrained (excluding patch_embed) from:', pretrained)
 
     return model

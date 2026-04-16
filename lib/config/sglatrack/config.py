@@ -17,18 +17,6 @@ cfg.MODEL.BACKBONE_MULTIPLIER = 0.1
 cfg.MODEL.PRETRAIN_FILE = "mae_pretrain_vit_base.pth"
 cfg.MODEL.EXTRA_MERGER = False
 
-# ORTrack-style ORR (template masking) + optional AFKD distillation
-cfg.MODEL.IS_DISTILL = False
-cfg.MODEL.TEACHER_TYPE = "sglatrack"  # "sglatrack" | "cnn"
-cfg.MODEL.TEACHER_CNN_NAME = "regnety_160"
-cfg.MODEL.TEACHER_CNN_PRETRAINED = True
-cfg.MODEL.TEACHER_PRETRAIN_FILE = ""
-cfg.MODEL.ORR_ENABLE = False
-cfg.MODEL.ORR_RANDOM_MASK = False
-cfg.MODEL.ORR_BLOCK_SZ = 16
-cfg.MODEL.ORR_MASK_RATIO = 0.3
-cfg.MODEL.ORR_GAUSSIAN_SIGMA = 64
-
 cfg.MODEL.RETURN_INTER = False
 cfg.MODEL.RETURN_STAGES = []
 
@@ -42,19 +30,6 @@ cfg.MODEL.TRANSFORMER.DEC_LAYERS = 6
 cfg.MODEL.TRANSFORMER.PRE_NORM = False
 cfg.MODEL.TRANSFORMER.DIVIDE_NORM = False
 
-# AQATrack-style query decoder + STM head (optional; see MODEL.AQA_QUERY.ENABLE)
-cfg.MODEL.AQA_QUERY = edict()
-cfg.MODEL.AQA_QUERY.ENABLE = False
-
-cfg.MODEL.TRANSFORMER_DEC = edict()
-cfg.MODEL.TRANSFORMER_DEC.NHEADS = 8
-cfg.MODEL.TRANSFORMER_DEC.DROPOUT = 0.1
-cfg.MODEL.TRANSFORMER_DEC.DIM_FEEDFORWARD = 512
-cfg.MODEL.TRANSFORMER_DEC.ENC_LAYERS = 0
-cfg.MODEL.TRANSFORMER_DEC.DEC_LAYERS = 3
-cfg.MODEL.TRANSFORMER_DEC.PRE_NORM = False
-cfg.MODEL.TRANSFORMER_DEC.DIVIDE_NORM = False
-
 # MODEL.BACKBONE
 cfg.MODEL.BACKBONE = edict()
 cfg.MODEL.BACKBONE.TYPE = "vit_base_patch16_224"
@@ -65,6 +40,9 @@ cfg.MODEL.BACKBONE.CAT_MODE = 'direct'
 cfg.MODEL.BACKBONE.MERGE_LAYER = 0
 cfg.MODEL.BACKBONE.ADD_CLS_TOKEN = False
 cfg.MODEL.BACKBONE.CLS_TOKEN_USE_MODE = 'ignore'
+
+cfg.MODEL.BACKBONE.EPS_INIT = 1e-3  # for vit_MALA_relu_eps: phi(x)=relu(x)+eps (eps learnable init)
+cfg.MODEL.BACKBONE.SQUAREMAX_EPS = 1e-6  # vit_square: Squaremax denom clamp
 
 cfg.MODEL.BACKBONE.CE_LOC = []
 cfg.MODEL.BACKBONE.CE_KEEP_RATIO = []
@@ -98,11 +76,6 @@ cfg.TRAIN.CE_START_EPOCH = 20  # candidate elimination start epoch
 cfg.TRAIN.CE_WARM_EPOCH = 80  # candidate elimination warm up epoch
 cfg.TRAIN.DROP_PATH_RATE = 0.1  # drop path rate for ViT backbone
 
-cfg.TRAIN.SIM_LOSS_WEIGHT = 0.0002
-cfg.TRAIN.DISTILL_LOSS_WEIGHT = 0.00002
-cfg.TRAIN.AFKD_TAU0 = 10
-cfg.TRAIN.AFKD_RHO = 10
-
 # TRAIN.SCHEDULER
 cfg.TRAIN.SCHEDULER = edict()
 cfg.TRAIN.SCHEDULER.TYPE = "step"
@@ -114,12 +87,6 @@ cfg.DATA.SAMPLER_MODE = "causal"  # sampling methods
 cfg.DATA.MEAN = [0.485, 0.456, 0.406]
 cfg.DATA.STD = [0.229, 0.224, 0.225]
 cfg.DATA.MAX_SAMPLE_INTERVAL = 200
-cfg.DATA.MIXED_UAV_SPLIT_SEED = 42
-cfg.DATA.RAND_AUGMENT = edict()
-cfg.DATA.RAND_AUGMENT.ENABLE = False
-cfg.DATA.RAND_AUGMENT.NUM_OPS = 2
-cfg.DATA.RAND_AUGMENT.MAGNITUDE = 9
-cfg.DATA.RAND_AUGMENT.PROB = 0.7
 # DATA.TRAIN
 cfg.DATA.TRAIN = edict()
 cfg.DATA.TRAIN.DATASETS_NAME = ["LASOT", "GOT10K_vottrain"]
@@ -181,7 +148,7 @@ def gen_config(config_file):
 
 
 def _update_config(base_cfg, exp_cfg):
-    if isinstance(base_cfg, dict) and isinstance(exp_cfg, dict):
+    if isinstance(base_cfg, dict) and isinstance(exp_cfg, edict):
         for k, v in exp_cfg.items():
             if k in base_cfg:
                 if not isinstance(v, dict):
