@@ -69,6 +69,9 @@ def run_training(script_name, config_name, cudnn_benchmark=True, local_rank=-1, 
             settings.project_path_teacher = 'train/{}/{}'.format(script_teacher, config_teacher)
         settings.cfg_file_teacher = os.path.join(prj_dir, 'experiments/%s/%s.yaml' % (script_teacher, config_teacher))
         expr_module = importlib.import_module('lib.train.train_script_distill')
+    elif script_name == 'sglatrack':
+        # sglatrack: optional feature distill via yaml MODEL.IS_DISTILL / TEACHER_PRETRAIN_FILE
+        expr_module = importlib.import_module('lib.train.train_script_v1')
     else:
         expr_module = importlib.import_module('lib.train.train_script')
     expr_func = getattr(expr_module, 'run')

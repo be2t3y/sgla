@@ -15,6 +15,11 @@ cfg.MODEL.NUM_OBJECT_QUERIES = 1
 cfg.MODEL.POSITION_EMBEDDING = "sine"
 cfg.MODEL.BACKBONE_MULTIPLIER = 0.1
 cfg.MODEL.PRETRAIN_FILE = "mae_pretrain_vit_base.pth"
+cfg.MODEL.IS_DISTILL = False
+cfg.MODEL.TEACHER_TYPE = "sglatrack"
+cfg.MODEL.TEACHER_PRETRAIN_FILE = ""
+cfg.MODEL.TEACHER_CNN_NAME = "regnety_160"
+cfg.MODEL.TEACHER_CNN_PRETRAINED = True
 cfg.MODEL.EXTRA_MERGER = False
 
 cfg.MODEL.RETURN_INTER = False
@@ -40,6 +45,8 @@ cfg.MODEL.BACKBONE.CAT_MODE = 'direct'
 cfg.MODEL.BACKBONE.MERGE_LAYER = 0
 cfg.MODEL.BACKBONE.ADD_CLS_TOKEN = False
 cfg.MODEL.BACKBONE.CLS_TOKEN_USE_MODE = 'ignore'
+cfg.MODEL.BACKBONE.SGLA_START_LAYER = 5
+cfg.MODEL.BACKBONE.SGLA_ENABLED_LAYER_NUM = 1
 
 cfg.MODEL.BACKBONE.EPS_INIT = 1e-3  # for vit_MALA_relu_eps: phi(x)=relu(x)+eps (eps learnable init)
 cfg.MODEL.BACKBONE.SQUAREMAX_EPS = 1e-6  # vit_square: Squaremax denom clamp
@@ -52,6 +59,16 @@ cfg.MODEL.BACKBONE.CE_TEMPLATE_RANGE = 'ALL'  # choose between ALL, CTR_POINT, C
 cfg.MODEL.HEAD = edict()
 cfg.MODEL.HEAD.TYPE = "CENTER"
 cfg.MODEL.HEAD.NUM_CHANNELS = 256
+
+cfg.MODEL.AQA_QUERY = edict()
+cfg.MODEL.AQA_QUERY.ENABLE = False
+
+# ORTrack-style ORR (template masking) + sim_loss (see lib/models/sglatrack/sglatrack.py)
+cfg.MODEL.ORR_ENABLE = False
+cfg.MODEL.ORR_RANDOM_MASK = False
+cfg.MODEL.ORR_BLOCK_SZ = 16
+cfg.MODEL.ORR_MASK_RATIO = 0.3
+cfg.MODEL.ORR_GAUSSIAN_SIGMA = 64
 
 # TRAIN
 cfg.TRAIN = edict()
@@ -75,6 +92,12 @@ cfg.TRAIN.AMP = False
 cfg.TRAIN.CE_START_EPOCH = 20  # candidate elimination start epoch
 cfg.TRAIN.CE_WARM_EPOCH = 80  # candidate elimination warm up epoch
 cfg.TRAIN.DROP_PATH_RATE = 0.1  # drop path rate for ViT backbone
+cfg.TRAIN.DISTILL = False
+cfg.TRAIN.DISTILL_LOSS_TYPE = "KL"
+cfg.TRAIN.DISTILL_LOSS_WEIGHT = 2e-5
+cfg.TRAIN.SIM_LOSS_WEIGHT = 0.0
+cfg.TRAIN.AFKD_TAU0 = 10.0
+cfg.TRAIN.AFKD_RHO = 10.0
 
 # TRAIN.SCHEDULER
 cfg.TRAIN.SCHEDULER = edict()

@@ -39,6 +39,13 @@ from lib.models.layers.patch_embed import PatchEmbed
 from lib.models.sglatrack.base_backbone import BaseBackbone
 
 
+def softmax_taylor(x, dim=-1):
+    x_approx = 1.0 + x
+    denom = torch.sum(x_approx, dim=dim, keepdim=True)
+    denom = torch.clamp(denom, min=1e-6)
+    return x_approx / denom
+
+
 class Attention(nn.Module):
     def __init__(self, dim, num_heads=8, qkv_bias=False, attn_drop=0., proj_drop=0.):
         super().__init__()
@@ -60,25 +67,17 @@ class Attention(nn.Module):
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
 
-        # 與 vit.py 相同：scaled dot-product 為 (q @ k^T) * (1/sqrt(d))，等價於兩邊各乘 d^{-1/4}
-        # 再送入 ReLU+1 正值核，並以 per-head gating 銳化注意力分佈
-        s = self.scale ** 0.5
-        qs = q * s
-        ks = k * s
-        q = F.relu(qs)
-        k = F.relu(ks)
-        v = self.attn_drop(v)
-        k_mean = k.mean(dim=-2, keepdim=True)
-        z = 1.0 / (q @ k_mean.transpose(-2, -1) + 1e-5)
-        kv = (k.transpose(-2, -1) @ v) / float(N)
-        x = (q @ kv) * z
+        q = F.relu6(q * self.scale)
+        k = F.relu6(k)
+        attn = q @ k.transpose(-2, -1)
+        attn = softmax_taylor(attn, dim=-1)
+        attn = self.attn_drop(attn)
+        x = attn @ v
         x = x.transpose(1, 2).reshape(B, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
 
         if return_attention:
-            # 與標準 ViT 的 pre-softmax logits 同形、同尺度（供除錯／可視化）
-            attn = qs @ ks.transpose(-2, -1)
             return x, attn
         return x
 
@@ -145,7 +144,7 @@ class VisionTransformer(BaseBackbone):
         self.num_features = self.embed_dim = embed_dim  # num_features for consistency with other models
         self.num_tokens = 2 if distilled else 1
         norm_layer = norm_layer or partial(nn.LayerNorm, eps=1e-6)
-        act_layer = act_layer or nn.GELU
+        act_layer = act_layer or nn.ReLU6
 
         self.patch_embed = embed_layer(
             img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim)

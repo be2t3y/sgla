@@ -9,7 +9,7 @@ from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 from lib.models.layers.patch_embed import PatchEmbed
 from lib.models.sglatrack.utils import combine_tokens, recover_tokens
 enabled_layer_num = 1
-start_layer = 5     ## ture start = start_layer + 1
+start_layer = 5     ## true start = start_layer + 1
 
 
 class ThreeLayerMLP(nn.Module):
@@ -17,7 +17,7 @@ class ThreeLayerMLP(nn.Module):
         super(ThreeLayerMLP, self).__init__()
         self.fc1 = nn.Linear(input_dim, hidden_dim)
         self.fc2 = nn.Linear(hidden_dim, output_dim)
-        self.relu = nn.ReLU()
+        self.relu = nn.ReLU6(inplace=True)
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
@@ -52,9 +52,12 @@ class BaseBackbone(nn.Module):
         self.add_sep_seg = False
 
     def finetune_track(self, cfg, patch_start_index=1):
+        global start_layer, enabled_layer_num
         search_size = to_2tuple(cfg.DATA.SEARCH.SIZE)
         template_size = to_2tuple(cfg.DATA.TEMPLATE.SIZE)
         new_patch_size = cfg.MODEL.BACKBONE.STRIDE
+        start_layer = int(getattr(cfg.MODEL.BACKBONE, "SGLA_START_LAYER", 5))
+        enabled_layer_num = int(getattr(cfg.MODEL.BACKBONE, "SGLA_ENABLED_LAYER_NUM", 1))
 
         self.cat_mode = cfg.MODEL.BACKBONE.CAT_MODE
         self.return_inter = cfg.MODEL.RETURN_INTER
@@ -117,12 +120,13 @@ class BaseBackbone(nn.Module):
                     layer_name = f'norm{i_layer}'
                     self.add_module(layer_name, layer)
 
-        # Calculate actual input_dim for MLP based on template and search patches
+        # Calculate actual input_dim for MLP based on template and search patches.
+        # For ViT-B/16 with template=128, search=256 => 64 + 256 = 320 tokens.
         lens_z = template_patch_pos_embed.shape[1]
         lens_x = search_patch_pos_embed.shape[1]
         total_tokens = lens_z + lens_x
         print(f'Initializing MLP with input_dim={total_tokens} (template patches: {lens_z}, search patches: {lens_x})')
-        self.MLP = ThreeLayerMLP(input_dim=total_tokens, output_dim=12-1-start_layer)
+        self.MLP = ThreeLayerMLP(input_dim=total_tokens, output_dim=12 - 1 - start_layer)
 
     def forward_(self, z, x):
         B = x.shape[0]

@@ -1,3 +1,6 @@
+# Student: MAE ViT-B + feature distill from a trained sglatrack .pth.tar (e.g. epoch 50).
+# Set TEACHER_PRETRAIN_FILE to your MAE teacher checkpoint path (relative to s3lab_research_v1/python or absolute).
+# Teacher should use the same backbone / template-search sizes as this yaml.
 DATA:
   MAX_SAMPLE_INTERVAL: 200
   MEAN:
@@ -39,6 +42,9 @@ DATA:
 
 MODEL:
   PRETRAIN_FILE: "mae_pretrain_vit_base.pth"
+  IS_DISTILL: True
+  TEACHER_TYPE: "sglatrack"
+  TEACHER_PRETRAIN_FILE: "output/checkpoints/train/sglatrack/vit_coco_got10k/sglatrack_ep0050.pth.tar"
   EXTRA_MERGER: False
   RETURN_INTER: False
   RETURN_STAGES: []
@@ -81,6 +87,14 @@ TRAIN:
   CE_START_EPOCH: 20
   CE_WARM_EPOCH: 80
   FREEZE_LAYERS: [0, 1, 2]
+  # Feature distill: MSE(backbone_feat student vs teacher). AFKD_RHO>0 adds GIoU-based sample reweighting.
+  # Plain / uniform distill: set AFKD_RHO: 0 and AFKD_TAU0: 1.0; tune strength with DISTILL_LOSS_WEIGHT only.
+  DISTILL_LOSS_WEIGHT: 0.00002
+  #AFKD_TAU0: 10.0
+  #AFKD_RHO: 10.0
+  AFKD_TAU0: 1.0
+  AFKD_RHO: 0.0
+  SIM_LOSS_WEIGHT: 0.0
 
 TEST:
   EPOCH: 50

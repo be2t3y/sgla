@@ -1,3 +1,5 @@
+# Same as vit_coco_got10k_distill_mae_teacher.yaml, but teacher loads from a prior
+# vit_coco_got10k_distill_mae_teacher run (ep50 full checkpoint).
 DATA:
   MAX_SAMPLE_INTERVAL: 200
   MEAN:
@@ -39,6 +41,9 @@ DATA:
 
 MODEL:
   PRETRAIN_FILE: "mae_pretrain_vit_base.pth"
+  IS_DISTILL: True
+  TEACHER_TYPE: "sglatrack"
+  TEACHER_PRETRAIN_FILE: "/home/junjie/01_Research/SGLATrack-main/s3lab_research_v1/python/output/checkpoints/train/sglatrack/vit_coco_got10k_distill_mae_teacher/sglatrack_ep0050.pth.tar"
   EXTRA_MERGER: False
   RETURN_INTER: False
   RETURN_STAGES: []
@@ -81,6 +86,10 @@ TRAIN:
   CE_START_EPOCH: 20
   CE_WARM_EPOCH: 80
   FREEZE_LAYERS: [0, 1, 2]
+  DISTILL_LOSS_WEIGHT: 0.00002
+  AFKD_TAU0: 1.0
+  AFKD_RHO: 0.0
+  SIM_LOSS_WEIGHT: 0.0
 
 TEST:
   EPOCH: 50
