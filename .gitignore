@@ -3,3 +3,30 @@ data/
 # checkpoints
 output/checkpoints/
 allfiles.txt
+software_new/
+s3lab_research_v1/python/00_Dataset/
+s3lab_research_v1/python/01_Training/
+s3lab_research_v1/python/output/checkpoint/
+RTL/
+tensorboard/
+
+# 權重與預訓練（不進版控）
+*.pth
+*.pth.tar
+*.pt
+pretrained_models/
+
+# Python 編譯產物
+__pycache__/
+*.pyc
+*.pyo
+
+# 本機 / 第三方目錄（先前約定不傳）
+.vscode/
+RTL-Coder-main/
+
+# 訓練與測試日誌（體積大、可重跑產生）
+output/logs/
+
+# 巢狀倉庫改併入外層時保留的本機備份（勿提交）
+**/_git_subrepo_backup/

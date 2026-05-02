@@ -27,7 +27,11 @@ def run(settings):
     # update the default configs with config file
     if not os.path.exists(settings.cfg_file):
         raise ValueError("%s doesn't exist." % settings.cfg_file)
-    config_module = importlib.import_module("lib.config.%s.config" % settings.script_name)
+    # Prefer config_v1 (supports ORR/distill keys), fallback to legacy config.
+    try:
+        config_module = importlib.import_module("lib.config.%s.config_v1" % settings.script_name)
+    except ModuleNotFoundError:
+        config_module = importlib.import_module("lib.config.%s.config" % settings.script_name)
     cfg = config_module.cfg
     config_module.update_config_from_file(settings.cfg_file)
     if settings.local_rank in [-1, 0]:

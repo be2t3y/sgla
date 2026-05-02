@@ -17,6 +17,18 @@ cfg.MODEL.BACKBONE_MULTIPLIER = 0.1
 cfg.MODEL.PRETRAIN_FILE = "mae_pretrain_vit_base.pth"
 cfg.MODEL.EXTRA_MERGER = False
 
+# ORTrack-style ORR (template masking) + optional distillation
+cfg.MODEL.IS_DISTILL = False
+cfg.MODEL.TEACHER_TYPE = "sglatrack"  # "sglatrack" | "cnn"
+cfg.MODEL.TEACHER_CNN_NAME = "regnety_160"
+cfg.MODEL.TEACHER_CNN_PRETRAINED = True
+cfg.MODEL.TEACHER_PRETRAIN_FILE = ""
+cfg.MODEL.ORR_ENABLE = False
+cfg.MODEL.ORR_RANDOM_MASK = False
+cfg.MODEL.ORR_BLOCK_SZ = 16
+cfg.MODEL.ORR_MASK_RATIO = 0.3
+cfg.MODEL.ORR_GAUSSIAN_SIGMA = 64
+
 cfg.MODEL.RETURN_INTER = False
 cfg.MODEL.RETURN_STAGES = []
 
@@ -75,6 +87,10 @@ cfg.TRAIN.AMP = False
 cfg.TRAIN.CE_START_EPOCH = 20  # candidate elimination start epoch
 cfg.TRAIN.CE_WARM_EPOCH = 80  # candidate elimination warm up epoch
 cfg.TRAIN.DROP_PATH_RATE = 0.1  # drop path rate for ViT backbone
+cfg.TRAIN.SIM_LOSS_WEIGHT = 0.0002
+cfg.TRAIN.DISTILL_LOSS_WEIGHT = 0.00002
+cfg.TRAIN.AFKD_TAU0 = 10
+cfg.TRAIN.AFKD_RHO = 10
 
 # TRAIN.SCHEDULER
 cfg.TRAIN.SCHEDULER = edict()
