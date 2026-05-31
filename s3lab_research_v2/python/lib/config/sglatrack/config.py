@@ -15,6 +15,11 @@ cfg.MODEL.NUM_OBJECT_QUERIES = 1
 cfg.MODEL.POSITION_EMBEDDING = "sine"
 cfg.MODEL.BACKBONE_MULTIPLIER = 0.1
 cfg.MODEL.PRETRAIN_FILE = "mae_pretrain_vit_base.pth"
+cfg.MODEL.IS_DISTILL = False
+cfg.MODEL.TEACHER_TYPE = "sglatrack"
+cfg.MODEL.TEACHER_PRETRAIN_FILE = ""
+cfg.MODEL.TEACHER_CNN_NAME = "regnety_160"
+cfg.MODEL.TEACHER_CNN_PRETRAINED = True
 cfg.MODEL.EXTRA_MERGER = False
 
 cfg.MODEL.RETURN_INTER = False
@@ -53,6 +58,13 @@ cfg.MODEL.HEAD = edict()
 cfg.MODEL.HEAD.TYPE = "CENTER"
 cfg.MODEL.HEAD.NUM_CHANNELS = 256
 
+# ORTrack-style ORR (template masking) + sim_loss (see lib/models/sglatrack/sglatrack.py)
+cfg.MODEL.ORR_ENABLE = False
+cfg.MODEL.ORR_RANDOM_MASK = False
+cfg.MODEL.ORR_BLOCK_SZ = 16
+cfg.MODEL.ORR_MASK_RATIO = 0.3
+cfg.MODEL.ORR_GAUSSIAN_SIGMA = 64
+
 # TRAIN
 cfg.TRAIN = edict()
 cfg.TRAIN.LR = 0.0001
@@ -75,6 +87,12 @@ cfg.TRAIN.AMP = False
 cfg.TRAIN.CE_START_EPOCH = 20  # candidate elimination start epoch
 cfg.TRAIN.CE_WARM_EPOCH = 80  # candidate elimination warm up epoch
 cfg.TRAIN.DROP_PATH_RATE = 0.1  # drop path rate for ViT backbone
+cfg.TRAIN.DISTILL = False
+cfg.TRAIN.DISTILL_LOSS_TYPE = "KL"
+cfg.TRAIN.DISTILL_LOSS_WEIGHT = 2e-5
+cfg.TRAIN.SIM_LOSS_WEIGHT = 0.0
+cfg.TRAIN.AFKD_TAU0 = 10.0
+cfg.TRAIN.AFKD_RHO = 10.0
 
 # TRAIN.SCHEDULER
 cfg.TRAIN.SCHEDULER = edict()
@@ -87,6 +105,8 @@ cfg.DATA.SAMPLER_MODE = "causal"  # sampling methods
 cfg.DATA.MEAN = [0.485, 0.456, 0.406]
 cfg.DATA.STD = [0.229, 0.224, 0.225]
 cfg.DATA.MAX_SAMPLE_INTERVAL = 200
+# 非空時覆寫 LaSOT 訓練序列清單（lib/train/data_specs/ 下的檔名）
+cfg.DATA.LASOT_TRAIN_SPLIT = ''
 # DATA.TRAIN
 cfg.DATA.TRAIN = edict()
 cfg.DATA.TRAIN.DATASETS_NAME = ["LASOT", "GOT10K_vottrain"]

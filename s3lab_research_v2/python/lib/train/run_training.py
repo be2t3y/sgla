@@ -8,8 +8,12 @@ import torch.distributed as dist
 
 import random
 import numpy as np
+import torch
+
 torch.backends.cudnn.benchmark = False
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+# 勿覆寫使用者已設定的可見 GPU；單卡時硬設 0,1,2,3 易造成異常
+if "CUDA_VISIBLE_DEVICES" not in os.environ:
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 import _init_paths
 import lib.train.admin.settings as ws_settings
@@ -19,9 +23,28 @@ def init_seeds(seed):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+
+
+def _warmup_cuda_cudnn(device_id: int):
+    """在建立大模型前做一次小 conv，避免部分環境首個 Conv 出現 CUDNN_STATUS_NOT_INITIALIZED。"""
+    if not torch.cuda.is_available():
+        return
+    device_id = int(device_id)
+    torch.cuda.set_device(device_id)
+    torch.backends.cudnn.enabled = True
+    dev = torch.device("cuda:%d" % device_id)
+    x = torch.randn(1, 3, 64, 64, device=dev, dtype=torch.float32)
+    conv = torch.nn.Conv2d(3, 4, kernel_size=3, padding=1, bias=False).to(dev)
+    conv.train()
+    with torch.cuda.device(device_id):
+        y = conv(x)
+        y = torch.relu(y)
+    del x, y, conv
+    torch.cuda.synchronize()
 
 
 def run_training(script_name, config_name, cudnn_benchmark=True, local_rank=-1, save_dir=None, base_seed=None,
@@ -69,9 +92,15 @@ def run_training(script_name, config_name, cudnn_benchmark=True, local_rank=-1, 
             settings.project_path_teacher = 'train/{}/{}'.format(script_teacher, config_teacher)
         settings.cfg_file_teacher = os.path.join(prj_dir, 'experiments/%s/%s.yaml' % (script_teacher, config_teacher))
         expr_module = importlib.import_module('lib.train.train_script_distill')
+    elif script_name == 'sglatrack':
+        # sglatrack: optional feature distill / ORR / AFKD via yaml MODEL.IS_DISTILL
+        expr_module = importlib.import_module('lib.train.train_script_v1')
     else:
         expr_module = importlib.import_module('lib.train.train_script')
     expr_func = getattr(expr_module, 'run')
+
+    dev_id = 0 if local_rank in (-1, None) else int(local_rank)
+    _warmup_cuda_cudnn(dev_id)
 
     expr_func(settings)
 

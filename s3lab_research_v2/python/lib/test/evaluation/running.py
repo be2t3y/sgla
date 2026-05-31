@@ -140,7 +140,10 @@ def run_sequence(seq: Sequence, tracker: Tracker, debug=False, num_gpu=8):
             output = tracker.run_sequence(seq, debug=debug)
         except Exception as e:
             print(e)
-            return
+            raise RuntimeError(
+                '追蹤失敗：序列「{}」（dataset={}）。請修正錯誤後重跑 tracking/test.py；'
+                '失敗時不應繼續跑 calculate_metrics（需要每個序列的 .txt）。原始錯誤：{}'.format(
+                    seq.name, seq.dataset, e)) from e
 
     sys.stdout.flush()
 

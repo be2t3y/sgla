@@ -18,8 +18,6 @@ python/output/checkpoints
 python/output_vit/checkpoints
 python/output/test
 python/output_vit
-# golden / dump（體積大，勿進版控）
-python/output/golden/
 
 # log
 python/output/logs/*.log

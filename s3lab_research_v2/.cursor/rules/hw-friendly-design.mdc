@@ -69,7 +69,7 @@ alwaysApply: false
 2. 保持 `__init__` 中的參數名與 `vit.py` 一致（`qkv`, `proj`, `scale` 等）
 3. 如需新增可學習參數（如 gate），用 `nn.Parameter` 並在註解中說明硬體含義
 4. 在檔案開頭 docstring 說明對應的參考論文/方法
-5. 對應建立 `python/experiments/sglatrack/vit_coco_uav123_<名稱>.yaml` 設定檔
+5. 對應建立 `python/experiments/sglatrack/vit_coco_got10k_<名稱>.yaml` 設定檔
 
 ## 實驗與比較基準
 

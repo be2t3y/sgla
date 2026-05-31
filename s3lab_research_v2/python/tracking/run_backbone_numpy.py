@@ -3,8 +3,10 @@
 使用方式：
     python tracking/run_backbone_numpy.py \\
       --golden-dir output/golden/vit_care_relu6_fixed_golden \\
-      --weight-dir output/exported_npy/vit_coco_uav123_care_relu6_ep0050_all \\
-      --output-dir output/golden/vit_care_relu6_numpy_out
+      --weight-dir output/exported_npy/vit_coco_got10k_care_relu6_ep0050_all \\
+      --output-dir output/golden/vit_care_relu6_numpy_dim32_out
+
+預設 --output-dir 為 vit_care_relu6_numpy_dim32_out（head_dim=32 時的 Weight / Activation 輸出根目錄）。
 
 設計原則：
 - 純 numpy，不建立任何 PyTorch model 或呼叫 .forward()
@@ -32,13 +34,15 @@ import numpy as np
 
 
 # ---------------------------------------------------------------------------
-# Model constants (vit_coco_uav123_care_relu6_fixed)
+# Model constants（須與匯出之 linearParam / checkpoint 一致）
+# EMBED_DIM=32 時 NUM_HEADS 必須整除 32；預設單頭 HEAD_DIM=32。
+# 若訓練用 4 heads × 8 dim，請改 NUM_HEADS=4（HEAD_DIM 會變為 8）。
 # ---------------------------------------------------------------------------
-EMBED_DIM = 768
-NUM_HEADS = 12
-HEAD_DIM = EMBED_DIM // NUM_HEADS        # 64
-SCALE = HEAD_DIM ** -0.5                 # 0.125
-S = SCALE ** 0.5                         # ≈ 0.353553
+EMBED_DIM = 32
+NUM_HEADS = 1
+HEAD_DIM = EMBED_DIM // NUM_HEADS        # 32（單頭）
+SCALE = HEAD_DIM ** -0.5
+S = SCALE ** 0.5
 LENS_Z = 64
 LENS_X = 256
 N_TOKENS = LENS_Z + LENS_X              # 320
@@ -79,7 +83,7 @@ def layer_norm(x: np.ndarray, weight: np.ndarray, bias: np.ndarray,
     """硬體友善 LayerNorm（方案 A：Newton-Raphson inv_sqrt）。
 
     計算流程（對齊 RTL）：
-      rcp_n    = round(1/N × 2^16)/2^16   常數乘法 + 右移 16（N=768 → 85/65536）
+      rcp_n    = round(1/N × 2^16)/2^16   常數乘法 + 右移 16（N=EMBED_DIM，隨層自動）
       mean     = sum(x) × rcp_n           加法樹 + 常數乘
       centered = x - mean                 減法
       var      = sum(centered^2) × rcp_n  平方後累加（float64 避免溢位）再 Q8.8
@@ -92,7 +96,7 @@ def layer_norm(x: np.ndarray, weight: np.ndarray, bias: np.ndarray,
 
     mean     = fp(x.sum(axis=-1, keepdims=True) * rcp_n)
     centered = fp(x - mean)
-    # centered^2 在 float64 累加（最大 128^2×768 ≈ 12M，超出 Q8.8），乘 rcp_n 後再 Q8.8
+    # centered^2 在 float64 累加後乘 rcp_n，再 Q8.8
     var      = fp((centered.astype(np.float64) ** 2).sum(axis=-1, keepdims=True) * rcp_n)
     inv_std  = fp(_inv_sqrt_nr(var + eps, num_iter=inv_sqrt_iter))
     return fp(weight * fp(centered * inv_std) + bias)
@@ -560,12 +564,13 @@ def parse_args() -> argparse.Namespace:
     )
     p.add_argument(
         "--weight-dir",
-        default="output/exported_npy/vit_coco_uav123_care_relu6_ep0050_all",
+        default="output/exported_npy/vit_coco_got10k_care_relu6_ep0050_all",
         help="exported weight npy 根目錄（來自 export_checkpoint_npy.py）",
     )
     p.add_argument(
-        "--output-dir", required=True,
-        help="計算結果 npy 輸出目錄",
+        "--output-dir",
+        default="output/golden/vit_care_relu6_numpy_dim32_out",
+        help="計算結果 npy / Weight / Activation 輸出根目錄（預設：dim32 golden）",
     )
     return p.parse_args()
 
@@ -598,15 +603,15 @@ def main() -> None:
     # ------------------------------------------------------------------
     # Step 1: 載入 backbone 輸入 activation（已是 Q8.8，再做一次 fp 確保對齊）
     # ------------------------------------------------------------------
-    z = fp(np.load(gd / "template_after_pos_add_out.npy").astype(np.float32))  # [1, 64, 768]
-    x = fp(np.load(gd / "search_after_pos_add_out.npy").astype(np.float32))    # [1, 256, 768]
+    z = fp(np.load(gd / "template_after_pos_add_out.npy").astype(np.float32))  # [1, 64, E]
+    x = fp(np.load(gd / "search_after_pos_add_out.npy").astype(np.float32))    # [1, 256, E]
     save_npy("template_post_embed_input.npy", z)
     save_npy("search_post_embed_input.npy", x)
 
     # ------------------------------------------------------------------
     # Step 2: combine_tokens（mode="direct" = concat）+ pos_drop（eval = identity）
     # ------------------------------------------------------------------
-    merged = fp(np.concatenate([z, x], axis=1))    # [1, 320, 768]
+    merged = fp(np.concatenate([z, x], axis=1))    # [1, 320, E]
     save_npy("merged_tokens.npy", merged)
     x = fp(merged)
     save_npy("after_pos_drop_out.npy", x)
@@ -678,21 +683,21 @@ def main() -> None:
     write_wbi(norm_w, "backbone_norm_weight")
     norm_b = load_w(lap / "backbone_norm_bias.npy")
     write_wbi(norm_b, "backbone_norm_bias")
-    backbone_out = fp(layer_norm(x, norm_w, norm_b))        # [1, 320, 768]
+    backbone_out = fp(layer_norm(x, norm_w, norm_b))        # [1, 320, E]
     save_npy("backbone_after_norm_backbone_out.npy", backbone_out)
 
     # ------------------------------------------------------------------
     # Step 7: forward_head reshape
     # 對齊 sglatrack.forward_head 的 permute+view：
-    #   enc_opt = cat_feature[:, -FEAT_LEN:]        → [1, 256, 768]
-    #   opt     = enc_opt.unsqueeze(-1)             → [1, 256, 768, 1]
-    #   opt     = opt.permute(0, 3, 2, 1)           → [1, 1, 768, 256]
-    #   opt_feat = opt.view(-1, C, feat_sz, feat_sz) → [1, 768, 16, 16]
+    #   enc_opt = cat_feature[:, -FEAT_LEN:]        → [1, 256, E]
+    #   opt     = enc_opt.unsqueeze(-1)             → [1, 256, E, 1]
+    #   opt     = opt.permute(0, 3, 2, 1)           → [1, 1, E, 256]
+    #   opt_feat = opt.view(-1, C, feat_sz, feat_sz) → [1, E, 16, 16]
     # ------------------------------------------------------------------
-    enc_opt  = backbone_out[:, -FEAT_LEN:]                          # [1, 256, 768]
-    opt      = enc_opt[:, :, :, np.newaxis]                         # [1, 256, 768, 1]
-    opt      = opt.transpose(0, 3, 2, 1)                            # [1, 1, 768, 256]
-    opt_feat = opt.reshape(-1, EMBED_DIM, FEAT_SZ, FEAT_SZ)         # [1, 768, 16, 16]
+    enc_opt  = backbone_out[:, -FEAT_LEN:]                          # [1, 256, E]
+    opt      = enc_opt[:, :, :, np.newaxis]                         # [1, 256, E, 1]
+    opt      = opt.transpose(0, 3, 2, 1)                            # [1, 1, E, 256]
+    opt_feat = opt.reshape(-1, EMBED_DIM, FEAT_SZ, FEAT_SZ)         # [1, E, 16, 16]
 
     # ------------------------------------------------------------------
     # Step 8: head conv 三個分支

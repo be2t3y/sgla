@@ -1,0 +1,175 @@
+Magic 271485
+Revision Verdi_P-2019.06
+
+; Window Layout <x> <y> <width> <height> <signalwidth> <valuewidth>
+viewPort 0 24 1920 1003 292 526
+
+; File list:
+; openDirFile [-d delimiter] [-s time_offset] [-rf auto_bus_rule_file] path_name file_name
+openDirFile -d / "" "/misc/Si2_RAID-1/s3/110/chenming/7_memory_part_syn/CNN/RTL/conv.fsdb"
+
+; file time scale:
+; fileTimeScale ### s|ms|us|ns|ps
+
+; signal spacing:
+signalSpacing 5
+
+; windowTimeUnit is used for zoom, cursor & marker
+windowTimeUnit 4ns
+
+; waveform viewport range
+zoom 316819.074540 316828.484934 4n
+cursor 25897.500000
+marker 0.000000
+
+; user define markers
+; userMarker time_pos marker_name color linestyle
+; visible top row signal index
+top 49
+; marker line index
+markerPos 54
+
+; event list
+; addEvent event_name event_expression
+; curEvent event_name
+
+
+
+COMPLEX_EVENT_BEGIN
+
+
+COMPLEX_EVENT_END
+
+
+
+; toolbar current search type
+; curSTATUS search_type
+curSTATUS ByChange
+
+
+addGroup "TEST"
+activeDirFile "" "/misc/Si2_RAID-1/s3/110/chenming/7_memory_part_syn/CNN/RTL/conv.fsdb"
+addSignal -h 15 /TEST/conv/clk
+addSignal -h 15 -holdScope reset
+addSignal -h 15 -holdScope in_valid
+addSignal -h 15 -UNSIGNED -UDEC -holdScope img_in[7:0]
+addSignal -h 15 -UNSIGNED -UDEC /TEST/IN_CNT[13:0]
+addGroup "Sram1"
+addSignal -h 15 /TEST/conv/cen1_1
+addSignal -h 15 -holdScope wen1_1
+addSignal -h 15 -UNSIGNED -UDEC -holdScope address1_1[12:0]
+addSignal -h 15 -UNSIGNED -UDEC -holdScope data_in1_1[7:0]
+addSignal -h 15 -UNSIGNED -UDEC -holdScope data_out1_1[7:0]
+addSignal -h 15 -holdScope catch_delay
+addSignal -h 15 -holdScope cen1_2
+addSignal -h 15 -holdScope wen1_2
+addGroup "Sram2"
+addSignal -h 15 -UNSIGNED -UDEC /TEST/conv/address2_1[10:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope data_out2_1[7:0]
+addGroup "Operation"
+addSignal -h 15 -UNSIGNED -UDEC /TEST/conv/one_img_address[11:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope one_img[0:4095]
+addSignal -h 15 -holdScope layer[2:0]
+addSignal -h 15 -UNSIGNED -UDEC -holdScope in_channel[3:0]
+addSignal -h 15 -UNSIGNED -UDEC -holdScope out_channel[4:0]
+addSignal -h 15 -holdScope conv_start
+addSignal -h 15 -UNSIGNED -UDEC -holdScope conv_address[11:0]
+addSignal -h 15 -holdScope add_start
+addSignal -h 15 -UNSIGNED -UDEC -holdScope add_address[11:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope conv1[18:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope conv2[18:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope conv3[18:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope conv4[18:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope conv5[18:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope conv6[18:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope conv7[18:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope conv8[18:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope conv9[18:0]
+addSignal -h 15 -UNSIGNED -UDEC -holdScope sum_address[11:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope sum_write[18:0]
+addSignal -h 15 -UNSIGNED -UDEC /TEST/conv/partial_sum/address[11:0]
+addSignal -h 15 -UNSIGNED -BIN /TEST/conv/bn_result[18:0]
+addSignal -h 15 -UNSIGNED -BIN /TEST/conv/partial_sum/sum1_img[0:1023]
+addSignal -h 15 -UNSIGNED -BIN -holdScope sum2_img[0:1023]
+addSignal -h 15 -UNSIGNED -BIN -holdScope sum3_img[0:1023]
+addSignal -h 15 -UNSIGNED -BIN -holdScope sum4_img[0:1023]
+addSignal -h 15 -holdScope pool1[18:0]
+addSignal -h 15 -holdScope pool2[18:0]
+addSignal -h 15 -holdScope pool3[18:0]
+addSignal -h 15 -holdScope pool4[18:0]
+addSignal -h 15 /TEST/conv/x1_test[7:0]
+addSignal -h 15 -holdScope x2_test[7:0]
+addSignal -h 15 -holdScope x3_test[7:0]
+addSignal -h 15 -holdScope x4_test[7:0]
+addGroup "BN"
+addSignal -h 15 /TEST/conv/bn_start
+addSignal -h 15 -UNSIGNED -UDEC -holdScope bn_address[11:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope gamma[11:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope sum_gamma[35:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope beta[6:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope gamma_beta[35:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope activation[7:0]
+addGroup "Maxpool"
+addSignal -h 15 -UNSIGNED -UDEC /TEST/conv/pool_address[11:0]
+addSignal -h 15 -holdScope pool_start
+addSignal -h 15 -UNSIGNED -BIN -holdScope max3[7:0]
+addSignal -h 15 -UNSIGNED -UDEC -holdScope store_address[10:0]
+addGroup "GAP"
+addSignal -h 15 -UNSIGNED -BIN /TEST/conv/acti_sum[0:31]
+addGroup "FC"
+addSignal -h 15 /TEST/conv/fc_fix
+addSignal -h 15 -holdScope fc1_start
+addSignal -h 15 -holdScope fc_catch
+addSignal -h 15 -UNSIGNED -UDEC -holdScope kernel_exit3[6:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope true_weight[9:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope fc_result[25:0]
+addSignal -h 15 -UNSIGNED -UDEC -holdScope address_exit3[10:0]
+addSignal -h 15 -holdScope fc2_start
+addSignal -h 15 -holdScope fc1_catch
+addSignal -h 15 -holdScope fc3_start
+addSignal -h 15 -holdScope cen_exit1
+addSignal -h 15 -UNSIGNED -UDEC -holdScope mul_cnt[4:0]
+addSignal -h 15 -UNSIGNED -UDEC -holdScope kernel_in[7:0]
+addSignal -h 15 -UNSIGNED -UDEC -holdScope point_address[4:0]
+addSignal -h 15 -UNSIGNED -UDEC -holdScope point1_address[4:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope fc_point[0:29]
+addSignal -h 15 -UNSIGNED -BIN -holdScope fc_point1[0:29]
+addSignal -h 15 -UNSIGNED -BIN -holdScope exit1[10:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope exit2[10:0]
+addSignal -h 15 -UNSIGNED -BIN -holdScope exit3[10:0]
+addGroup "G11"
+addGroup "G12"
+addGroup "G13"
+
+; getSignalForm Scope Hierarchy Status
+; active file of getSignalForm
+activeDirFile "" "/misc/Si2_RAID-1/s3/110/chenming/7_memory_part_syn/CNN/RTL/conv.fsdb"
+
+GETSIGNALFORM_SCOPE_HIERARCHY_BEGIN
+getSignalForm close
+
+"/TEST"
+"/TEST/conv"
+"/TEST/conv/partial_sum"
+"/TEST/conv/rf1_1"
+
+SCOPE_LIST_BEGIN
+"/TEST"
+"/TEST/conv"
+"/sram_sr1_1_error_injection"
+"/sram_sr1_2_error_injection"
+"/sram_sr1_2"
+"/TEST/conv/sr1"
+"/TEST/conv/sr2"
+"/TEST/conv/sr1_1"
+"/rom_via_c1c2_error_injection"
+"/img_sr1_2_error_injection"
+"/img_sr1_1_error_injection"
+"/TEST/conv/rom_via_c1c2"
+"/TEST/conv/rf1_1"
+"/TEST/conv/partial_sum"
+SCOPE_LIST_END
+
+GETSIGNALFORM_SCOPE_HIERARCHY_END
+
+

@@ -23,6 +23,7 @@ def update_settings(settings, cfg):
     settings.print_stats = None
     settings.batchsize = int(cfg.TRAIN.BATCH_SIZE)
     settings.scheduler_type = cfg.TRAIN.SCHEDULER.TYPE
+    settings.lasot_train_split = getattr(cfg.DATA, 'LASOT_TRAIN_SPLIT', '') or ''
 
 
 def names2datasets(name_list: list, settings, image_loader):
@@ -36,7 +37,9 @@ def names2datasets(name_list: list, settings, image_loader):
                 print("Building lasot dataset from lmdb")
                 datasets.append(Lasot_lmdb(settings.env.lasot_lmdb_dir, split='train', image_loader=image_loader))
             else:
-                datasets.append(Lasot(settings.env.lasot_dir, split='train', image_loader=image_loader))
+                split_file = getattr(settings, 'lasot_train_split', '') or None
+                datasets.append(Lasot(settings.env.lasot_dir, split='train', image_loader=image_loader,
+                                    train_split_file=split_file))
         if name == "GOT10K_vottrain":
             if settings.use_lmdb:
                 print("Building got10k from lmdb")

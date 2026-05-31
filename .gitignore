@@ -1,32 +1,82 @@
-# dataset
-data/
-# checkpoints
-output/checkpoints/
-allfiles.txt
-software_new/
+# =============================================================================
+# SGLATrack .gitignore
+# 原則：只排除 dataset、checkpoint、log、測試產物、權重等大型檔案；
+#       程式碼、yaml、scripts、實驗設定等一律提交 GitHub。
+# =============================================================================
+
+# --- Datasets（原始影像 / benchmark 資料）---
+/data/
+**/python/data/
 s3lab_research_v1/python/00_Dataset/
 s3lab_research_v1/python/01_Training/
-s3lab_research_v1/python/output/checkpoint/
-RTL/
-tensorboard/
+VideoX-master/**/data/
 
-# 權重與預訓練（不進版控）
+# --- Training / test 輸出目錄（整包排除）---
+/output/
+**/output/
+**/output_vit/
+
+# --- Checkpoints（保險：output 已涵蓋，另列常見路徑）---
+**/checkpoints/
+**/checkpoint/
+
+# --- 模型權重 / 預訓練 ---
 *.pth
 *.pth.tar
 *.pt
-pretrained_models/
+*.ckpt
+*.safetensors
+**/pretrained_models/
 
-# Python 編譯產物
+# --- Logs / TensorBoard ---
+**/logs/
+**/tensorboard/
+/tensorboard/
+*.log
+wandb/
+
+# --- Test / eval / golden 產物 ---
+**/tracking_results/
+**/result_plots/
+**/eval_data/
+**/golden/
+
+# --- RTL simulation / synthesis artifacts ---
+RTL/**/*.sdf
+RTL/**/*.fsdb
+RTL/xcelium.d/
+RTL/INCA_libs/
+RTL/**/worklib/
+RTL/nWaveLog/
+*.pak
+*.fsdb
+
+# --- Python 編譯與快取 ---
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
+*.so
+.ipynb_checkpoints/
+*.egg-info/
+.eggs/
+dist/
+build/
 
-# 本機 / 第三方目錄（先前約定不傳）
+# --- IDE / OS ---
 .vscode/
-RTL-Coder-main/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
 
-# 訓練與測試日誌（體積大、可重跑產生）
-output/logs/
+# --- 本機大型 bundle / 雜項清單（非原始碼）---
+software_new/
+**/software_new/
+allfiles.txt
 
-# 巢狀倉庫改併入外層時保留的本機備份（勿提交）
+# --- 巢狀倉庫併入時的本機備份 ---
 **/_git_subrepo_backup/
+
+# --- 第三方本機參考（體積大、可另行 clone）---
+RTL-Coder-main/

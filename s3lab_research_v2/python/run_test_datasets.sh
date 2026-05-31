@@ -11,7 +11,7 @@
 # 用法（建議在 repo root 執行）：
 #   bash python/run_test_datasets.sh
 #   bash python/run_test_datasets.sh /path/to/my_datasets.txt
-#   CONFIG=vit_coco_uav123_care SCRIPT=sglatrack bash python/run_test_datasets.sh
+#   CONFIG=vit_coco_got10k_care SCRIPT=sglatrack bash python/run_test_datasets.sh
 #
 # 環境變數（皆可選，有預設值）：
 #   DATASET_LIST   清單檔路徑（若第一個參數有給檔案，則優先於此）
@@ -32,7 +32,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR/python"
 
 SCRIPT="${SCRIPT:-sglatrack}"
-CONFIG="${CONFIG:-vit_coco_uav123_care}"
+CONFIG="${CONFIG:-vit_coco_got10k_care}"
 SAVE_DIR="${SAVE_DIR:-output}"
 THREADS="${THREADS:-8}"
 TEST_NUM_GPUS="${TEST_NUM_GPUS:-1}"

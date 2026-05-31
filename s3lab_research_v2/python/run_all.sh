@@ -2,23 +2,30 @@
 # 一鍵執行：train -> test -> evaluation (AUC/Precision)
 #
 # 預設使用：
-#   experiments/sglatrack/vit_coco_uav123_mala_relu.yaml
+#   experiments/sglatrack/vit_coco_got10k_mala_relu.yaml
 #
-# 用法：
-#   bash python/run_all_mala_relu.sh
-#   CONFIG=vit_coco_uav123_mala_relu NUM_GPUS=1 DATASET=uav123 bash python/run_all_mala_relu.sh
+# 用法（在含 python/ 的 repo 根目錄）：
+#   bash python/run_all.sh
+#   CONFIG=vit_coco_got10k_mala_relu NUM_GPUS=1 DATASET=uav123 bash python/run_all.sh
 #
 # 注意：此腳本假設你從 repo root 執行（也可在其他路徑執行，會自動切到專案 root）。
 
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ ! -f "$_SCRIPT_DIR/tracking/train.py" ]]; then
+  echo "錯誤: 找不到 python/tracking/train.py（目前腳本目錄: $_SCRIPT_DIR）" >&2
+  echo "請在 repo 根目錄執行，例如: bash python/run_all.sh" >&2
+  exit 1
+fi
+
+ROOT_DIR="$(cd "$_SCRIPT_DIR/.." && pwd)"
 cd "$ROOT_DIR/python"
 
 # ----------------------
 # 可調參數（可用環境變數覆蓋）
 # ----------------------
-CONFIG="${CONFIG:-vit_coco_uav123_mala_relu}"   # 不含 .yaml
+CONFIG="${CONFIG:-vit_coco_got10k_mala_relu}"   # 不含 .yaml
 SCRIPT="${SCRIPT:-sglatrack}"
 SAVE_DIR="${SAVE_DIR:-output}"
 MODE="${MODE:-multiple}"                       # single | multiple | multi_node（通常用 single/multiple）

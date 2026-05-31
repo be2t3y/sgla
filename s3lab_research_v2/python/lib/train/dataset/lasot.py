@@ -23,7 +23,8 @@ class Lasot(BaseVideoDataset):
     Download the dataset from https://cis.temple.edu/lasot/download.html
     """
 
-    def __init__(self, root=None, image_loader=jpeg4py_loader, vid_ids=None, split=None, data_fraction=None):
+    def __init__(self, root=None, image_loader=jpeg4py_loader, vid_ids=None, split=None, data_fraction=None,
+                 train_split_file=None):
         """
         args:
             root - path to the lasot dataset.
@@ -42,6 +43,7 @@ class Lasot(BaseVideoDataset):
         self.class_list = [f for f in os.listdir(self.root)]
         self.class_to_id = {cls_name: cls_id for cls_id, cls_name in enumerate(self.class_list)}
 
+        self.train_split_file = train_split_file
         self.sequence_list = self._build_sequence_list(vid_ids, split)
 
         if data_fraction is not None:
@@ -55,7 +57,10 @@ class Lasot(BaseVideoDataset):
                 raise ValueError('Cannot set both split_name and vid_ids.')
             ltr_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
             if split == 'train':
-                file_path = os.path.join(ltr_path, 'data_specs', 'lasot_train_split.txt')
+                split_file = (self.train_split_file or '').strip()
+                if not split_file:
+                    split_file = os.environ.get('LASOT_TRAIN_SPLIT', 'lasot_train_split.txt').strip()
+                file_path = os.path.join(ltr_path, 'data_specs', split_file)
             else:
                 raise ValueError('Unknown split name.')
             # sequence_list = pandas.read_csv(file_path, header=None, squeeze=True).values.tolist()

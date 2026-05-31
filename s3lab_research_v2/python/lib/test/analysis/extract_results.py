@@ -149,7 +149,12 @@ def extract_results(trackers, dataset, report_name, skip_missing_seq=False, plot
                     valid_sequence[seq_id] = 0
                     break
                 else:
-                    raise Exception('Result not found. {}'.format(results_path))
+                    raise FileNotFoundError(
+                        '找不到追蹤結果：{}\n'
+                        '請先成功跑完：python tracking/test.py <tracker> <config> --dataset_name {}\n'
+                        '若該目錄下只有部分 .txt，代表上次測試曾失敗或中斷，請刪除子目錄「{}」後重跑 test。'.format(
+                            results_path, report_name,
+                            os.path.join(trk.results_dir, report_name)))
 
             # Calculate measures
             err_overlap, err_center, err_center_normalized, valid_frame = calc_seq_err_robust(

@@ -50,7 +50,7 @@ alwaysApply: true
 
 - 浮點訓練 backbone：`python/lib/models/sglatrack/vit_CARE_relu6.py`
 - 定點測試 backbone：`python/lib/models/sglatrack/vit_CARE_relu6_fixed.py`
-- 定點 test config：`python/experiments/sglatrack/vit_coco_uav123_care_relu6_fixed.yaml`
+- 定點 test config：`python/experiments/sglatrack/vit_coco_got10k_care_relu6_fixed.yaml`
 - checkpoint 匯出腳本：`python/tracking/export_checkpoint_npy.py`
 - Python check 參考：`reference/rongxuan/05_PythonCheck/python_check.py`
 - Verilog 前 binary Python check 參考：`reference/rongxuan/06_GetBinary/python_check_verilog.py`
@@ -58,7 +58,7 @@ alwaysApply: true
 ## checkpoint 路徑規則
 
 - `vit_CARE_relu6.py` 訓練出的 checkpoint 預設路徑為：
-  - `python/output/checkpoints/train/sglatrack/vit_coco_uav123_care_relu6/sglatrack_ep0050.pth.tar`
+  - `python/output/checkpoints/train/sglatrack/vit_coco_got10k_care_relu6/sglatrack_ep0050.pth.tar`
 - 之所以優先使用 `ep0050`，是因為 config 的 `TEST.EPOCH = 50`，test 預設即會載入第 50 epoch。
 - 若之後改 config 名稱或 epoch，需同步更新：
   - 訓練 checkpoint 路徑
@@ -191,7 +191,7 @@ alwaysApply: true
 
 - 使用 `python/tracking/export_checkpoint_npy.py` 匯出 `.npy`。
 - checkpoint 來源固定優先使用：
-  - `python/output/checkpoints/train/sglatrack/vit_coco_uav123_care_relu6/sglatrack_ep0050.pth.tar`
+  - `python/output/checkpoints/train/sglatrack/vit_coco_got10k_care_relu6/sglatrack_ep0050.pth.tar`
 - 匯出目的分兩種：
   - 完整保存用：匯出完整 state_dict
   - RTL 用：只匯出 post-embedding 之後真正需要的參數

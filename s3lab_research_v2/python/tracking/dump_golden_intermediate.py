@@ -19,7 +19,7 @@ Pipeline（對齊 .cursor/rules/python-to-rtl-plan.mdc）：
 並包含 adaptive selector 選出的 block index（RTL 僅需跑第 0~5 層 + 此 selected 層）。
 
 注意：
-- 本腳本預設使用 `vit_coco_uav123_care_relu6_fixed_dump.yaml`，其 backbone 是
+- 本腳本預設使用 `vit_coco_got10k_care_relu6_fixed_dump.yaml`，其 backbone 是
   `vit_CARE_relu6_fixed_dump.py` 中的 `VisionTransformerDump`。
 - `vit_CARE_relu6_fixed_dump.py` 現已對齊 `vit_CARE_relu6_fixed_hand.py`：
   Linear / LayerNorm / Dropout / DropPath / Mlp / ReLU6 全部改用 `lib.module`
@@ -61,7 +61,7 @@ def parse_args():
     parser.add_argument("--script", type=str, default="sglatrack", choices=["sglatrack"])
     parser.add_argument(
         "--config", type=str,
-        default="vit_coco_uav123_care_relu6_fixed_dump",
+        default="vit_coco_got10k_care_relu6_fixed_dump",
         help="config name under experiments/<script>/ (預設：dump-only 變體)",
     )
     parser.add_argument("--checkpoint", type=str, required=True)
@@ -142,7 +142,7 @@ def main():
         raise RuntimeError(
             f"dump_golden_intermediate.py 需配合 dump-only backbone 使用，"
             f"但目前 cfg.MODEL.BACKBONE.TYPE = {backbone_type}。"
-            f"請使用 --config vit_coco_uav123_care_relu6_fixed_dump。"
+            f"請使用 --config vit_coco_got10k_care_relu6_fixed_dump。"
         )
 
     model, missing, unexpected = _load_model(args.script, cfg, args.checkpoint, args.device)

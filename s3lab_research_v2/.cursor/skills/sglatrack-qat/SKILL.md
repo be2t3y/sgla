@@ -118,7 +118,7 @@ The QAT file MUST keep identical `__init__` parameter names for all layers that 
 
 ### Step 2: Create YAML config
 
-Create `python/experiments/sglatrack/vit_coco_uav123_<name>_qat.yaml`:
+Create `python/experiments/sglatrack/vit_coco_got10k_<name>_qat.yaml`:
 
 - Copy from the source variant's YAML
 - Change `MODEL.BACKBONE.TYPE` to the new QAT builder name
@@ -164,7 +164,7 @@ Run this test to verify everything works:
 ```python
 from lib.models.sglatrack.sglatrack import build_sglatrack
 from lib.config.sglatrack.config import cfg, update_config_from_file
-update_config_from_file('experiments/sglatrack/vit_coco_uav123_<name>_qat.yaml')
+update_config_from_file('experiments/sglatrack/vit_coco_got10k_<name>_qat.yaml')
 cfg.MODEL.PRETRAIN_FILE = ''
 model = build_sglatrack(cfg, training=False)
 
@@ -200,7 +200,7 @@ print('QAT smoke test passed')
 
 ```
 NEW:  python/lib/models/sglatrack/vit_<NAME>_qat.py
-NEW:  python/experiments/sglatrack/vit_coco_uav123_<name>_qat.yaml
+NEW:  python/experiments/sglatrack/vit_coco_got10k_<name>_qat.yaml
 EDIT: python/lib/models/sglatrack/sglatrack.py  (import + elif)
 ```
 
